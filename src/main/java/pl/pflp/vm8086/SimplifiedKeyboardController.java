@@ -7,14 +7,16 @@ import net.minecraft.nbt.CompoundTag;
 
 /**
  * This is a temporary keyboard controller, later it will be replaced with a
- * 8255 PPI This is loosely based on PS/2 8042 command interface (which is quite
+ * 8255 PPI. This is loosely based on PS/2 8042 command interface (which is quite
  * unsuited for a 8086 emulator)
  */
-public class SimplifiedKeyboardController implements IPortSpaceDevice, IKeyboardController {
+public class SimplifiedKeyboardController implements IPortSpaceDevice, IKeyboardController, InterruptSource {
 
 	IPS2Keyboard keyboard = null;
 
 	private static ArrayList<SimplifiedKeyboardController> controlers = new ArrayList<>();
+	
+	private InterruptRequest currentRequest = null;
 
 	protected void setKeyboard(IPS2Keyboard keyboard) {
 		this.keyboard = keyboard;
@@ -172,8 +174,11 @@ public class SimplifiedKeyboardController implements IPortSpaceDevice, IKeyboard
 		}
 		/* set IRQ pending status */
 		deviceIrqPending = ((data & 16) != 0);
+		
 		if (deviceIrqPending) {
-			/* TODO: PIC */
+			/* TODO */
+			this.currentRequest = new InterruptRequest(this);
+			deviceIrqPending = false;
 		}
 	}
 
@@ -216,6 +221,8 @@ public class SimplifiedKeyboardController implements IPortSpaceDevice, IKeyboard
 		} else {
 			deviceQueuedBytes.add(data);
 		}
+		
+		this.currentRequest = new InterruptRequest(this);
 	}
 
 	private void updateDataOut() {
@@ -252,8 +259,15 @@ public class SimplifiedKeyboardController implements IPortSpaceDevice, IKeyboard
 	}
 
 	@Override
-	public boolean processIrqs() {
-		/* TODO */
-		return false;
+	public InterruptRequest consume() {
+		InterruptRequest result = this.peek();
+		this.currentRequest = null;
+		return result;
 	}
+
+	@Override
+	public InterruptRequest peek() {
+		return this.currentRequest;
+	}
+
 }

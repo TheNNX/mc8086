@@ -1,11 +1,6 @@
 package pl.pflp.vm8086;
 
-import static pl.pflp.vm8086.Registers8086.AF;
-import static pl.pflp.vm8086.Registers8086.CF;
-import static pl.pflp.vm8086.Registers8086.OF;
-import static pl.pflp.vm8086.Registers8086.PF;
-import static pl.pflp.vm8086.Registers8086.SF;
-import static pl.pflp.vm8086.Registers8086.ZF;
+import static pl.pflp.vm8086.Registers8086.*;
 
 public interface IOperation {
 	public final static int defaultFlagMask = ZF | OF | SF | AF | PF | CF;

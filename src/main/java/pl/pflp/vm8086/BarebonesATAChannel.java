@@ -282,17 +282,10 @@ public class BarebonesATAChannel implements IPortSpaceDevice {
 	}
 
 	private void manageLba(int lbaIndex, byte data) {
-		int bitmask2, bitmask1, bitshift1, bitshift2;
-		bitshift2 = (lbaIndex + 3) * 8;
-		bitmask2 = (0xFF << bitshift2);
-
-		bitshift1 = lbaIndex * 8;
-		bitmask1 = (0xFF << bitshift1);
-
-		lba = lba & (~bitmask2);
-		byte currentData = (byte) (lba & bitmask1);
-		lba = lba | (currentData << bitshift2);
-		lba = lba | (data << bitshift1);
+		int bitshift = lbaIndex * 8;
+		int antimask = ~(0xFF << lbaIndex);
+		
+		lba = (lba & antimask) | (data << bitshift);
 	}
 
 	@Override
@@ -383,14 +376,6 @@ public class BarebonesATAChannel implements IPortSpaceDevice {
 	@Override
 	public void save(CompoundTag tag) {
 
-	}
-
-	@Override
-	public boolean processIrqs() {
-		if (irqPending) {
-			/* TODO */
-		}
-		return false;
 	}
 
 	public void addDevice(IBlockDevice device, boolean slave) {

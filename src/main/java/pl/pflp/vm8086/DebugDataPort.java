@@ -33,9 +33,4 @@ public class DebugDataPort implements IPortSpaceDevice {
 	public void save(CompoundTag tag) {
 	}
 
-	@Override
-	public boolean processIrqs() {
-		return false;
-	}
-
 }

@@ -1,32 +1,35 @@
 package pl.pflp.vm8086;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+
 public class DummyIdeDrive implements IBlockDevice {
-
-	byte[] realData = new byte[512];
-
-	public DummyIdeDrive() {
-		String initialData = "a big pile of bullshit shared disk cock balls shit";
-		char[] data = initialData.toCharArray();
-		for (int i = 0; i < ((data.length > realData.length) ? realData.length : data.length); i++) {
-			realData[i * 2] = (byte) data[i];
-			realData[i * 2 + 1] = (byte) (0x0A);
-		}
-	}
 
 	@Override
 	public boolean write(long lba, byte[] sectorData) {
-		this.realData = sectorData;
-		return true;
+		return false;
 	}
 
 	@Override
 	public byte[] read(long lba) {
-		return realData;
+		byte[] data = new byte[512];
+		
+		try (FileInputStream fs = new FileInputStream("C:\\Users\\Marcin\\Desktop\\bootloader\\bootloader")){
+			fs.skipNBytes(lba * 512);
+			fs.read(data);
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		} catch (IOException e1) {
+			e1.printStackTrace();
+		}
+		
+		return data;
 	}
 
 	@Override
 	public long getLbaFromChs(short cylinders, byte heads, byte sectors) {
-		return 0;
+		return (cylinders * getHeadsPerCylinder() + heads) * getSectorsPerTrack() + sectors - 1;
 	}
 
 	@Override

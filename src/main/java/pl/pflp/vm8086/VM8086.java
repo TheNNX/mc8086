@@ -1,12 +1,9 @@
 package pl.pflp.vm8086;
 
 import static pl.pflp.vm8086.Registers8086.*;
-
-import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Scanner;
-
-import pl.pflp.vm8086.ModRegRmInstruction.ModRegRmDecoded;
+import pl.pflp.vm8086.Bus.And;
+import pl.pflp.vm8086.InterruptSource.InterruptRequest;
 import pl.pflp.vm8086.Registers8086.Register16;
 
 public class VM8086 {
@@ -35,11 +32,19 @@ public class VM8086 {
 	public byte[] memory;
 	private BarebonesATAChannel primaryIde = new BarebonesATAChannel((short) 0x1F0, (short) 0x3F6);
 	private BarebonesATAChannel secondaryIde = new BarebonesATAChannel((short) 0x170, (short) 0x376);
+	
+	private PIC8259 masterPic = PIC8259.createMaster(this);
+	private PIC8259 slavePic = PIC8259.createSlave(this);
 
 	private void initCpu() {
 		portSpaceDevices.add(new DebugDataPort((short) 0xE8));
 		portSpaceDevices.add(new DebugNumberPort((short) 0xE9));
+		portSpaceDevices.add(masterPic);
+		portSpaceDevices.add(slavePic);
 		portSpaceDevices.add(keyboardController);
+		
+		masterPic.connect(1, keyboardController);
+		
 		if (primaryIde != null)
 			portSpaceDevices.add(primaryIde);
 		if (secondaryIde != null)
@@ -189,7 +194,7 @@ public class VM8086 {
 
 		/* If the size of operation is 8 bits, and there was an overflow between the
 		 * nibbles, set the AF this might be wrong, but I hope the Aux Carry Flag is
-		 * obscure enough for noone to test this. 
+		 * obscure enough for no one to test this. 
 		 */
 		if (bitnumber == 8 && ((o.operation(this, op1 & 0xF, op2 & 0xF) & 0xFF) > 0xF))
 			setMask |= AF;
@@ -2588,6 +2593,13 @@ public class VM8086 {
 	}
 
 	public boolean step() {
+		if (masterPic.peek() != null) {
+			InterruptRequest request = masterPic.consume();
+			System.out.println("Executing interrupt request " + request.getVector());
+			this.startInterrupt((byte) request.getVector());
+			return isRunning;
+		}
+		
 		int cs = registers.CS.intValue();
 		int ip = registers.IP.intValue();
 		byte instructionByte = this.readMemoryByte16((short) cs, (short) ip);
@@ -2611,21 +2623,6 @@ public class VM8086 {
 		startInterrupt(vector, this.registers.IP.shortValue(), this.registers.CS.shortValue(),
 				this.registers.FLAGS.shortValue());
 	}
-
-	/**
-	 * Starts an external interrupt.
-	 * 
-	 * @return true if the interrupt was successfully started
-	 * @return false if IF flag was not set and as a result, the interrupt was
-	 *         dropped
-	 */
-	public boolean externalInterrupt(byte interruptVector) {
-		if ((this.registers.FLAGS.intValue() & IF) != 0) {
-			this.startInterrupt(interruptVector);
-			return true;
-		}
-		return false;
-	}
 	
 	public void attachPS2Keyboard(IPS2Keyboard ps2keyboard) {
 		this.keyboardController.setKeyboard(ps2keyboard);
@@ -2634,5 +2631,4 @@ public class VM8086 {
 	public boolean shouldStep() {
 		return this.isRunning && !this.isHalted;
 	}
-
 }

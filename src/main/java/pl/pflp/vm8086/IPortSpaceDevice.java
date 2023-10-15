@@ -12,6 +12,4 @@ public interface IPortSpaceDevice {
 	void load(CompoundTag tag);
 
 	void save(CompoundTag tag);
-
-	boolean processIrqs();
 }
