@@ -11,7 +11,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.fml.LogicalSide;
 import net.minecraftforge.network.NetworkEvent;
-import pl.pflp.vm8086.IPS2Keyboard;
+import pl.pflp.vm8086.devices.IPS2Keyboard;
 
 public class KeypressPacket {
 	private BlockPos blockEntityPos;

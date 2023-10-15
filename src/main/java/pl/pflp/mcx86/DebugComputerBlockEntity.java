@@ -14,11 +14,11 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.server.command.TextComponentHelper;
-import pl.pflp.vm8086.DummyIdeDrive;
-import pl.pflp.vm8086.IBlockDevice;
-import pl.pflp.vm8086.IPS2Keyboard;
-import pl.pflp.vm8086.PS2Keyboard;
 import pl.pflp.vm8086.Registers8086.Register16;
+import pl.pflp.vm8086.devices.DummyIdeDrive;
+import pl.pflp.vm8086.devices.IBlockDevice;
+import pl.pflp.vm8086.devices.IPS2Keyboard;
+import pl.pflp.vm8086.devices.PS2Keyboard;
 import pl.pflp.vm8086.VM8086;
 
 public class DebugComputerBlockEntity extends SignBlockEntity {

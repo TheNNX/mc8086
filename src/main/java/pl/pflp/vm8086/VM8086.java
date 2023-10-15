@@ -2,9 +2,42 @@ package pl.pflp.vm8086;
 
 import static pl.pflp.vm8086.Registers8086.*;
 import java.util.ArrayList;
-import pl.pflp.vm8086.Bus.And;
-import pl.pflp.vm8086.InterruptSource.InterruptRequest;
+
 import pl.pflp.vm8086.Registers8086.Register16;
+import pl.pflp.vm8086.devices.BarebonesATAChannel;
+import pl.pflp.vm8086.devices.DebugDataPort;
+import pl.pflp.vm8086.devices.DebugNumberPort;
+import pl.pflp.vm8086.devices.IBlockDevice;
+import pl.pflp.vm8086.devices.IPS2Keyboard;
+import pl.pflp.vm8086.devices.IPortSpaceDevice;
+import pl.pflp.vm8086.devices.PIC8259;
+import pl.pflp.vm8086.devices.SimplifiedKeyboardController;
+import pl.pflp.vm8086.devices.Bus.And;
+import pl.pflp.vm8086.devices.InterruptSource.InterruptRequest;
+import pl.pflp.vm8086.instructions.ArithmeticInstructionImmA;
+import pl.pflp.vm8086.instructions.ArithmeticModInstrRmInstruction;
+import pl.pflp.vm8086.instructions.ArithmeticModRegRmInstruction;
+import pl.pflp.vm8086.instructions.ArithmeticModRegRmInstructionImmReg;
+import pl.pflp.vm8086.instructions.CountModInstrRmInstruction;
+import pl.pflp.vm8086.instructions.DivMulInstruction;
+import pl.pflp.vm8086.instructions.IOperation;
+import pl.pflp.vm8086.instructions.ImmediateInstruction;
+import pl.pflp.vm8086.instructions.Instruction;
+import pl.pflp.vm8086.instructions.JmpConditionalInstruction;
+import pl.pflp.vm8086.instructions.JmpFlagInstruction;
+import pl.pflp.vm8086.instructions.LeaModRegRmDecoder;
+import pl.pflp.vm8086.instructions.LoadPtrToSegInstruction;
+import pl.pflp.vm8086.instructions.LogicInstructionImmA;
+import pl.pflp.vm8086.instructions.LogicModInstrRmInstruction;
+import pl.pflp.vm8086.instructions.LogicModRegRmInstruction;
+import pl.pflp.vm8086.instructions.LogicModRegRmInstructionImmReg;
+import pl.pflp.vm8086.instructions.ModInstrRmInstructions;
+import pl.pflp.vm8086.instructions.ModRegRmDecoder;
+import pl.pflp.vm8086.instructions.ModRegRmInstruction;
+import pl.pflp.vm8086.instructions.ModSegRmDecoder;
+import pl.pflp.vm8086.instructions.RepPrefix;
+import pl.pflp.vm8086.instructions.SegmentOverridePrefix;
+import pl.pflp.vm8086.instructions.StringInstruction;
 
 public class VM8086 {
 
@@ -147,7 +180,7 @@ public class VM8086 {
 		return result;
 	}
 
-	protected short shortFromBytes(byte[] immediateBytes) {
+	public short shortFromBytes(byte[] immediateBytes) {
 		if (immediateBytes.length == 2) {
 			return (short) (((immediateBytes[0] & 0xFF) | ((((int) immediateBytes[1]) * 256)) & 0xFF00) & 0xFFFF);
 		} else {
@@ -2094,7 +2127,7 @@ public class VM8086 {
 		decodeTable[0x3E] = segOverride;
 	}
 
-	protected int getBitmask(int bitcount) {
+	public int getBitmask(int bitcount) {
 		return (1 << bitcount) - 1;
 	}
 

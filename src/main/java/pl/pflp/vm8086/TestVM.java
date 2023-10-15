@@ -9,6 +9,9 @@ import java.nio.file.Files;
 import javax.swing.ImageIcon;
 import javax.swing.JLabel;
 
+import pl.pflp.vm8086.devices.DummyIdeDrive;
+import pl.pflp.vm8086.devices.PS2Keyboard;
+
 import java.awt.Frame;
 import java.awt.Graphics;
 import java.awt.Insets;
