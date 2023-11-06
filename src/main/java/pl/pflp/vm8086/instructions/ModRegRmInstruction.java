@@ -34,7 +34,7 @@ public abstract class ModRegRmInstruction extends Instruction {
 				break;
 			case 1:
 				/* 8 bits sign extended to 16 bits */
-				displacement = vm.readMemoryShort16(vm.registers.CS.shortValue(), vm.registers.IP.shortValue());
+				displacement = (short)vm.readMemoryByte16(vm.registers.CS.shortValue(), vm.registers.IP.shortValue());
 				vm.registers.IP.add(1);
 				break;
 			case 2:

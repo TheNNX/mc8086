@@ -220,6 +220,7 @@ public class BarebonesATAChannel implements IPortSpaceDevice {
 			if (discardData)
 				enqueueDataOutArray(result);
 		}
+		secCount = 0;
 		deviceBusy = false;
 		if (discardData)
 			dataRequest = true;
@@ -283,7 +284,7 @@ public class BarebonesATAChannel implements IPortSpaceDevice {
 
 	private void manageLba(int lbaIndex, byte data) {
 		int bitshift = lbaIndex * 8;
-		int antimask = ~(0xFF << lbaIndex);
+		int antimask = ~(0xFF << bitshift);
 		
 		lba = (lba & antimask) | (data << bitshift);
 	}
