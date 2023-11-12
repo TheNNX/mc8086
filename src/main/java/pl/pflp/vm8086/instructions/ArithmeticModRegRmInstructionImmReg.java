@@ -19,15 +19,6 @@ public abstract class ArithmeticModRegRmInstructionImmReg extends ArithmeticModR
 		return (selfByte & 0x02) != 0;
 	}
 
-	/**
-	 * @return False if the instruction is not possible in a sign extending variant
-	 *         (that is the case with logic instruction for example). True
-	 *         otherwise.
-	 */
-	public boolean isSignedApplicable() {
-		return true;
-	}
-
 	@Override
 	public boolean getDirection(VM8086 vm, byte selfByte) {
 		return true;
@@ -37,10 +28,9 @@ public abstract class ArithmeticModRegRmInstructionImmReg extends ArithmeticModR
 	protected Object[] createExecutionArgs(VM8086 vm, byte selfByte, ModRegRmDecoded decoded) {
 		boolean W = getWidth(vm, selfByte);
 		boolean S = getIsSigned(selfByte);
-		boolean sApplicable = isSignedApplicable();
 
 		/* check for an illegal combination of bit flags in instruction encoding */
-		if ((S && !sApplicable) || (S && !W)) {
+		if (S && !W) {
 			System.out.println("Invalid signed bit in a sign ignoring instruction");
 			return null;
 		}

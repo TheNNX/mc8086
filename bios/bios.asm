@@ -53,10 +53,13 @@ boot:
     mov dl, 0x80
     int 13h
     
+	xchg bx, bx
+	cmp word [es:bx+510], 0xaa55
+	jne .notBootable
+	
     jmp 0x07C0:0x0000
     
     xor dl, dl
-    ;call tryLoadBootSector
     
 	mov cx, 0xB800
 	mov es, cx
@@ -83,6 +86,11 @@ boot:
 	
 .hlt:
 	nop
+	jmp .hlt
+	
+.notBootable:
+	mov si, noBootableDevice
+	call printStringWithInt
 	jmp .hlt
 
 times 10 int3
@@ -413,8 +421,18 @@ biosBlock:
     push di
     lea di, [.decodeTable]
     call callDecodeTable
-    pop di
+	
+	mov di, sp
+	jnc .noCarry
+.yesCarry:
+	or word [di+6], 0x0001
+	pop di
     iret
+.noCarry:
+	and word [di+6], 0xFFFE
+	pop di
+	iret
+	
 .decodeTable:
     dw unimplemented ; Reset disk system
     dw unimplemented ; Get status
@@ -778,6 +796,18 @@ printStringPreserveColour:
 	jmp .printLoop
 .endPrintString:
 	pop es
+	ret
+	
+printStringWithInt:
+.loop:
+	lodsb
+	test al, al
+	jz .endloop
+	mov ah, 0x0E
+	out 0xE8, al
+	int 10h
+	jmp printStringWithInt.loop
+.endloop:
 	ret
 	
 times 10 int3

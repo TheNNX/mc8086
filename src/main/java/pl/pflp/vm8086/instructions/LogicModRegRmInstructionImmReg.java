@@ -24,11 +24,6 @@ public abstract class LogicModRegRmInstructionImmReg extends ArithmeticModRegRmI
 	}
 
 	@Override
-	public boolean isSignedApplicable() {
-		return false;
-	}
-
-	@Override
 	protected void execute(VM8086 vm, byte[] bytes, Object[] data, short segment) throws CpuException {
 		super.execute(vm, bytes, data, segment);
 		vm.registers.FLAGS.write((short) (vm.registers.FLAGS.shortValue() & (~clearFlags)));

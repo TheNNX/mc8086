@@ -21,7 +21,10 @@ public class RepPrefix extends Instruction {
 
 		for (int i : repxePrefixableBytes) {
 			if (i == (nextInstructionByte & 0xFF))
+			{
 				repxe = true;
+				rep = true;
+			}
 		}
 
 		for (int i : repPrefixableBytes) {
@@ -29,20 +32,13 @@ public class RepPrefix extends Instruction {
 				rep = true;
 		}
 
-		/*
-		 * if the next instruction cannot take rep(n)(e) prefix or can (somefuckinghow)
-		 * take both
-		 */
-		if (repxe == rep)
+		if (repxe == false && rep == false)
 			throw new UndefinedOpcodeException(vm);
 
 		/*
 		 * this bit can only be set when it is a REPNE, it cannot be set for normal REP
 		 */
 		boolean desiredEquality = (selfByte & 0x01) != 0;
-		if (!desiredEquality && rep) {
-			throw new UndefinedOpcodeException(vm);
-		}
 
 		short currentIp = vm.registers.IP.shortValue();
 
