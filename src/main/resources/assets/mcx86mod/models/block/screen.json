@@ -1,0 +1,9 @@
+{
+  "parent": "minecraft:block/orientable",
+  "render_type": "minecraft:cutout",
+  "textures": {
+    "front": "mcx86mod:block/screen_front",
+    "side": "mcx86mod:block/screen_side",
+    "top": "mcx86mod:block/screen_top"
+  }
+}

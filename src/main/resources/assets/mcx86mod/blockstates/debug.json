@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=east": {
+      "model": "mcx86mod:block/screen",
+      "y": 90
+    },
+    "facing=north": {
+      "model": "mcx86mod:block/screen"
+    },
+    "facing=south": {
+      "model": "mcx86mod:block/screen",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "mcx86mod:block/screen",
+      "y": 270
+    }
+  }
+}
