@@ -24,7 +24,7 @@ public class LoadPtrToSegInstruction extends ModRegRmInstruction {
 	}
 
 	@Override
-	protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> ptrSegment) {
+    public void execute(VM8086 vm, byte[] bytes, Object[] data, Short ptrSegment) {
 		ModRegRmDecoded decoded = (ModRegRmDecoded) data[0];
 		int pointerOffset = (Integer)decoded.source;
 		short address = vm.readMemoryShortPhysical(pointerOffset);

@@ -1,4 +1,4 @@
-package thennx.mcx86;
+package thennx.mcx86.packets;
 
 import java.util.function.Supplier;
 
@@ -11,17 +11,21 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.fml.LogicalSide;
 import net.minecraftforge.network.NetworkEvent;
-import thennx.vm8086.Registers8086;
+import thennx.mcx86.MCx86Mod;
+import thennx.mcx86.computer.ComputerBlockEntity;
+import thennx.mcx86.screen.ScreenBlockEntity;
 import thennx.vm8086.devices.IPS2Keyboard;
 
 public class KeypressPacket {
-	private BlockPos blockEntityPos;
-	private ResourceKey<Level> dimension;
+	private final BlockPos blockEntityPos;
+	private final ResourceKey<Level> dimension;
 	private char character;
-	private int key;
-	private boolean pressed;
+	private final int key;
+	private final boolean pressed;
 
-	public KeypressPacket(DebugComputerBlockEntity blockEntity, char character, int key, boolean pressed) {
+	public static final float KEYPRESS_VALID_DISTSQUARE = 6.0f;
+
+	public KeypressPacket(ScreenBlockEntity blockEntity, char character, int key, boolean pressed) {
 		this.blockEntityPos = blockEntity.getBlockPos();
 		this.dimension = blockEntity.getLevel().dimension();
 		this.character = character;
@@ -54,20 +58,23 @@ public class KeypressPacket {
 			ctx.get().enqueueWork(() -> {
 				ServerPlayer player = context.getSender();
 				Level level = player.level();
+
 				if (!level.hasChunkAt(msg.blockEntityPos)
-						|| msg.blockEntityPos.distSqr(player.blockPosition()) > 5) {
-					MCx86Mod.LOGGER.warn("Player " + player.getName().getString()
-							+ " tried to access a block entity outside their range. ");
+						|| msg.blockEntityPos.distSqr(player.blockPosition()) > KEYPRESS_VALID_DISTSQUARE) {
+                    MCx86Mod.LOGGER.warn("Player {} tried to access a block entity outside their range. ", player.getName().getString());
 					return;
 				}
 
 				BlockEntity blockEntity = level.getBlockEntity(msg.blockEntityPos);
-				if (blockEntity == null || !(blockEntity instanceof DebugComputerBlockEntity))
+				if (!(blockEntity instanceof ScreenBlockEntity screenEntity))
 					return;
 
-				DebugComputerBlockEntity dbe = (DebugComputerBlockEntity) blockEntity;
-				IPS2Keyboard keyboard = dbe.getKeyboard();
-				//keyboard.keyPressed(msg.key | (msg.pressed ? 0 : 0x80));
+				ComputerBlockEntity computerEntity = screenEntity.getComputerEntity();
+				if (computerEntity == null)
+					return;
+
+				IPS2Keyboard keyboard = computerEntity.getKeyboard();
+
 				if (msg.key == 28) keyboard.queueKeystroke(msg.key, '\n', msg.pressed);
 				else if (msg.character > 255) {System.out.println("Weird key " +(int)msg.character ); msg.character = '?';}
 				else

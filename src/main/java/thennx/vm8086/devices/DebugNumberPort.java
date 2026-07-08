@@ -1,10 +1,10 @@
 package thennx.vm8086.devices;
 
-import net.minecraft.nbt.CompoundTag;
+import thennx.vm8086.IStateStorage;
 
-public class DebugNumberPort implements IPortSpaceDevice {
+public class DebugNumberPort implements IPortSpaceDevice, IStateful {
 
-	private short portBase;
+	private final short portBase;
 	byte staged = 0;
 
 	boolean waitingForSecond = false;
@@ -37,10 +37,15 @@ public class DebugNumberPort implements IPortSpaceDevice {
 	}
 
 	@Override
-	public void load(CompoundTag tag) {
+	public void load(IStateStorage stateStorage) {
 	}
 
 	@Override
-	public void save(CompoundTag tag) {
+	public void save(IStateStorage stateStorage) {
+	}
+
+	@Override
+	public void deleteSaved(IStateStorage stateStorage) {
+
 	}
 }

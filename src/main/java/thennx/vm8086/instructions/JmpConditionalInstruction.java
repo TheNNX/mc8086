@@ -13,7 +13,7 @@ public abstract class JmpConditionalInstruction extends ImmediateInstruction {
 	}
 
 	@Override
-	protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) throws CpuException {
+    public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) throws CpuException {
 		byte relAddress = ((byte[]) data[0])[0];
 		if (this.checkCondition(vm, bytes[0])) {
 			vm.registers.IP.add((int) relAddress);

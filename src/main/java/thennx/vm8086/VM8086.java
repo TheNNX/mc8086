@@ -2,32 +2,12 @@ package thennx.vm8086;
 
 import static thennx.vm8086.Registers8086.*;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.RandomAccessFile;
-import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Optional;
-
-import com.google.common.io.Files;
 
 import thennx.vm8086.Registers8086.Register16;
-import thennx.vm8086.devices.BarebonesATAChannel;
-import thennx.vm8086.devices.DebugDataPort;
-import thennx.vm8086.devices.DebugNumberPort;
-import thennx.vm8086.devices.DummyIdeDrive;
-import thennx.vm8086.devices.IBlockDevice;
-import thennx.vm8086.devices.IPS2Keyboard;
-import thennx.vm8086.devices.IPortSpaceDevice;
-import thennx.vm8086.devices.PIC8259;
-import thennx.vm8086.devices.SimplifiedKeyboardController;
-import thennx.vm8086.devices.InterruptSource.InterruptRequest;
+import thennx.vm8086.devices.*;
+import thennx.vm8086.devices.IInterruptSource.InterruptRequest;
 import thennx.vm8086.instructions.ArithmeticInstructionImmA;
 import thennx.vm8086.instructions.ArithmeticModInstrRmInstruction;
 import thennx.vm8086.instructions.ArithmeticModRegRmInstruction;
@@ -53,76 +33,86 @@ import thennx.vm8086.instructions.RepPrefix;
 import thennx.vm8086.instructions.SegmentOverridePrefix;
 import thennx.vm8086.instructions.StringInstruction;
 
-public class VM8086 {
+public class VM8086 implements IVirtualMachine {
 
 	public class IvtEntry {
 		public IvtEntry(byte[] bytes) {
-			if (bytes.length != 4) {
-				Cs = 0;
-				Ip = 0;
-				System.out.println("Error: invalid ivt entry length");
-			} else {
-				byte[] firstHalf = { bytes[0], bytes[1] };
-				byte[] secondHalf = { bytes[2], bytes[3] };
+			assert(bytes.length == 4);
 
-				this.Cs = shortFromBytes(secondHalf);
-				this.Ip = shortFromBytes(firstHalf);
-			}
+			byte[] firstHalf = { bytes[0], bytes[1] };
+			byte[] secondHalf = { bytes[2], bytes[3] };
+
+			this.Cs = shortFromBytes(secondHalf);
+			this.Ip = shortFromBytes(firstHalf);
 		}
 
 		public final short Cs;
 		public final short Ip;
 	}
 
-	boolean warnEnable = false;
-	private int instructionIdx = 0;
+	public int executeCount = 0;
+	private boolean halted = false;
+	private boolean running = false;
+	private boolean ipLogging = false;
 
 	public Registers8086 registers;
 	private SimplifiedKeyboardController keyboardController = new SimplifiedKeyboardController(this);
-	public byte[] memory;
+	public IMemoryBank[] memory = new IMemoryBank[1024 * 1024 / IMemoryBank.BANK_SIZE];
 	private BarebonesATAChannel primaryIde = new BarebonesATAChannel((short) 0x1F0, (short) 0x3F6);
 	private BarebonesATAChannel secondaryIde = new BarebonesATAChannel((short) 0x170, (short) 0x376);
 
 	private PIC8259 masterPic = PIC8259.createMaster(this);
 	private PIC8259 slavePic = PIC8259.createSlave(this);
+	private PIT8254 pit = new PIT8254();
+
+	private final ArrayList<IPortSpaceDevice> portSpaceDevices = new ArrayList<IPortSpaceDevice>();
+	private final ArrayList<IStateful> statefulDevices = new ArrayList<IStateful>();
+	public byte[] ioPorts = new byte[65536];
 
 	private void initCpu() {
 		registers = new Registers8086();
 		initializeDecodeTable();
 
-		portSpaceDevices.add(new DebugDataPort((short) 0xE8));
-		portSpaceDevices.add(new DebugNumberPort((short) 0xE9));
 		portSpaceDevices.add(masterPic);
 		portSpaceDevices.add(slavePic);
 		portSpaceDevices.add(keyboardController);
+		portSpaceDevices.add(pit);
 
+		masterPic.connect(0, pit);
 		masterPic.connect(1, keyboardController);
 
-		if (primaryIde != null)
+		if (primaryIde != null) {
 			portSpaceDevices.add(primaryIde);
-		if (secondaryIde != null)
+		}
+		if (secondaryIde != null) {
 			portSpaceDevices.add(secondaryIde);
-
-		primaryIde.addDevice(new DummyIdeDrive(), false);
+		}
 
 		registers.IP.write((short) 0x0000);
 		registers.CS.write((short) 0xFFFF);
 		registers.DX.write((short) 0x0000);
 		registers.AX.write((short) 0);
 		registers.CX.write((short) 0);
+
+		running = true;
+	}
+
+	public void addDebugPorts() {
+		portSpaceDevices.add(new DebugDataPort((short) 0xE8));
+		portSpaceDevices.add(new DebugNumberPort((short) 0xE9));
 	}
 
 	public VM8086(int memorySize, byte[] bios) {
-		memory = new byte[memorySize];
-		isRunning = false;
+		running = false;
 
-		for (int i = 0; i < memorySize; i++)
-			memory[i] = (byte) 0xFF;
+		memory[memory.length - 1] = new PhysicalMemoryBank(true, bios);
 
-		for (int i = 0; i < bios.length; i++)
-			writeMemoryByte16((short) 0xF000, (short) i, bios[i]);
+		for (int i = 0; i < memorySize / IMemoryBank.BANK_SIZE; i++) {
+			if (memory[i] == null) {
+				memory[i] = new PhysicalMemoryBank();
+			}
+		}
 
-		isRunning = true;
 		initCpu();
 	}
 
@@ -138,10 +128,12 @@ public class VM8086 {
 		channel.addDevice(device, slave);
 	}
 
+	@Override
 	public byte readMemoryBytePhysical(int physicalAddress) {
-		return memory[physicalAddress];
+		return memory[physicalAddress / IMemoryBank.BANK_SIZE].getByte(physicalAddress % IMemoryBank.BANK_SIZE);
 	}
 
+	@Override
 	public short readMemoryShortPhysical(int physicalAddress) {
 		/* java uses big endian */
 		byte lsb = readMemoryBytePhysical(physicalAddress);
@@ -164,19 +156,20 @@ public class VM8086 {
 		return readMemoryShortPhysical(physicalAddress);
 	}
 
-	private int nextIdtEntryToChange = 0;
-
+	@Override
 	public void writeMemoryBytePhysical(int physicalAddress, byte b) {
-		// int breakAddr = 0x1b65 + 0xf0000 + 0x100;
-		// if (b == breakAddr) {
-		// System.out.printf("Setting %06X to %02X\n", breakAddr, b);
-		// }
-		memory[physicalAddress] = b;
+		memory[physicalAddress / IMemoryBank.BANK_SIZE].setByte(physicalAddress % IMemoryBank.BANK_SIZE, b);;
 	}
 
+	@Override
 	public void writeMemoryShortPhysical(int physicalAddress, short w) {
 		writeMemoryBytePhysical(physicalAddress, (byte) (w & 0xFF));
 		writeMemoryBytePhysical(physicalAddress + 1, (byte) ((w & 0xFF00) / 256));
+	}
+
+	@Override
+	public long getFrequencyHz() {
+		return 4770000;
 	}
 
 	public void writeMemoryShort16(short segment, short offset, short w) {
@@ -210,10 +203,6 @@ public class VM8086 {
 		}
 	}
 
-	public Object[] run(Object[] data) {
-		return new Object[] {};
-	}
-
 	public Instruction[] decodeTable = new Instruction[256];
 
 	protected void adjustFlags(int clearMask, int setMask) {
@@ -234,11 +223,11 @@ public class VM8086 {
 	}
 
 	protected int adc(int operand1, int operand2) {
-		return operand1 + operand2 + (((registers.FLAGS.shortValue() & CF) != 0) ? 1 : 0);
+		return operand1 + operand2 + (((registers.FLAGS.shortValue() & MASK_CF) != 0) ? 1 : 0);
 	}
 
 	protected int sbb(int operand1, int operand2) {
-		return operand1 - (operand2 + (((registers.FLAGS.shortValue() & CF) != 0) ? 1 : 0));
+		return operand1 - (operand2 + (((registers.FLAGS.shortValue() & MASK_CF) != 0) ? 1 : 0));
 	}
 
 	public int executeOperation(IOperation o, int op1, int op2, int bitnumber) throws CpuException {
@@ -253,19 +242,19 @@ public class VM8086 {
 		 * obscure enough for no one to test this.
 		 */
 		if (bitnumber == 8 && ((o.operation(this, op1 & 0xF, op2 & 0xF) & 0xFF) > 0xF))
-			setMask |= AF;
+			setMask |= MASK_AF;
 
 		int selfApply1 = o.operation(this, op1, 0);
 		int selfApply2 = o.operation(this, 0, op2);
 		if (shouldSetOF(selfApply1, selfApply2, result, bitnumber))
-			setMask |= OF;
+			setMask |= MASK_OF;
 
 		adjustFlags(o.getFlagBitMask(), setMask & o.getFlagBitMask());
 		return result;
 	}
 
 	private void initializeDecodeTable() {
-		int incFlagMask = ZF | OF | SF | AF | PF;
+		int incFlagMask = MASK_ZF | MASK_OF | MASK_SF | MASK_AF | MASK_PF;
 		final IOperation incAddition = new IOperation() {
 
 			@Override
@@ -294,16 +283,16 @@ public class VM8086 {
 
 		Instruction hlt = new Instruction() {
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) {
-				vm.isHalted = true;
-				System.err.println("HLT");
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) {
+				vm.halted = true;
+				System.err.printf("%d: HLT - %X:%X\n", vm.executeCount, vm.registers.CS.intValue(), vm.registers.IP.shortValue());
 			}
 		};
 		decodeTable[0xF4] = hlt;
 
 		ModRegRmInstruction mov = new ModRegRmInstruction() {
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) {
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) {
 				ModRegRmDecoded decoded = (ModRegRmDecoded) data[0];
 				short data1 = decoded.readSource(vm);
 				decoded.writeDestination(data1, vm);
@@ -317,7 +306,7 @@ public class VM8086 {
 
 		ModRegRmInstruction movImmRmSub = new ModRegRmInstruction() {
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) {
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) {
 				ModRegRmDecoded decoded = (ModRegRmDecoded) data[0];
 				boolean W = decoded.W;
 				byte[] immediateBytes = this.readImmediateBytes(vm, W);
@@ -343,7 +332,7 @@ public class VM8086 {
 			}
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) {
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) {
 				boolean W = getWidth(vm, bytes[0]);
 				byte reg = (byte) (bytes[0] & 0x7);
 				Registers8086.Register16 dst = ModRegRmDecoder.instance.decodeReg(vm, reg);
@@ -358,16 +347,16 @@ public class VM8086 {
 		Instruction movMemAcc = new Instruction() {
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) {
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) {
 				byte[] immediateBytes = readImmediateBytes(vm, true);
 				short immediate = shortFromBytes(immediateBytes);
 				/* accumulator to mem */
 				if (getDirection(vm, bytes[0])) {
 					if (getWidth(vm, bytes[0])) {
-						vm.writeMemoryShort16(segment.orElse(vm.registers.DS.shortValue()), immediate,
+						vm.writeMemoryShort16((segment != null) ? segment : (vm.registers.DS.shortValue()), immediate,
 								vm.registers.AX.shortValue());
 					} else {
-						vm.writeMemoryByte16(segment.orElse(vm.registers.DS.shortValue()), immediate,
+						vm.writeMemoryByte16((segment != null) ? segment : (vm.registers.DS.shortValue()), immediate,
 								(byte) vm.registers.AX.readLow());
 					}
 				}
@@ -375,10 +364,10 @@ public class VM8086 {
 				else {
 					if (getWidth(vm, bytes[0])) {
 						vm.registers.AX
-								.write(vm.readMemoryShort16(segment.orElse(vm.registers.DS.shortValue()), immediate));
+								.write(vm.readMemoryShort16((segment != null) ? segment : (vm.registers.DS.shortValue()), immediate));
 					} else {
 						vm.registers.AX
-								.writeLow(vm.readMemoryByte16(segment.orElse(vm.registers.DS.shortValue()), immediate));
+								.writeLow(vm.readMemoryByte16((segment != null) ? segment : (vm.registers.DS.shortValue()), immediate));
 					}
 				}
 			}
@@ -397,7 +386,7 @@ public class VM8086 {
 			}
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) {
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) {
 				ModRegRmDecoded decoded = (ModRegRmDecoded) data[0];
 				short data1 = decoded.readSource(vm);
 				decoded.writeDestination(data1, vm);
@@ -410,7 +399,7 @@ public class VM8086 {
 		ModRegRmInstruction push = new ModRegRmInstruction() {
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				ModRegRmDecoded decoded = (ModRegRmDecoded) data[0];
 				if (getWidth(vm, bytes[0]) == false) {
@@ -422,7 +411,7 @@ public class VM8086 {
 
 		ModRegRmInstruction inc = new ModRegRmInstruction() {
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				ModRegRmDecoded decoded = (ModRegRmDecoded) data[0];
 				boolean w = getWidth(vm, bytes[0]);
@@ -437,7 +426,7 @@ public class VM8086 {
 
 		ModRegRmInstruction dec = new ModRegRmInstruction() {
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				ModRegRmDecoded decoded = (ModRegRmDecoded) data[0];
 				boolean w = getWidth(vm, bytes[0]);
@@ -458,7 +447,7 @@ public class VM8086 {
 			}
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) {
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) {
 				ModRegRmDecoded decoded = (ModRegRmDecoded) data[0];
 				short newIp = decoded.readSource(vm);
 				pushToStack(vm.registers.IP.shortValue());
@@ -474,7 +463,7 @@ public class VM8086 {
 			}
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) {
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) {
 				ModRegRmDecoded decoded = (ModRegRmDecoded) data[0];
 				short newIp = decoded.readSource(vm);
 				vm.registers.IP.write(newIp);
@@ -489,7 +478,7 @@ public class VM8086 {
 			}
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) {
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) {
 				ModRegRmDecoded decoded = (ModRegRmDecoded) data[0];
 				int offsetToFarPtr;
 				short newCs, newIp;
@@ -501,10 +490,9 @@ public class VM8086 {
 					newIp = vm.readMemoryShortPhysical(offsetToFarPtr);
 				} else {
 					offsetToFarPtr = decoded.readSource(vm);
-					newCs = vm.readMemoryShort16(segment.orElse(vm.registers.DS.shortValue()),
+					newCs = vm.readMemoryShort16((segment != null) ? segment : (vm.registers.DS.shortValue()),
 							(short) (offsetToFarPtr + 2));
-					/* BUG?? */
-					newIp = vm.readMemoryShort16(segment.orElse(vm.registers.DS.shortValue()),
+					newIp = vm.readMemoryShort16((segment != null) ? segment : (vm.registers.DS.shortValue()),
 							(short) (offsetToFarPtr));
 				}
 
@@ -524,7 +512,7 @@ public class VM8086 {
 			}
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) {
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) {
 				ModRegRmDecoded decoded = (ModRegRmDecoded) data[0];
 				int offsetToFarPtr;
 				short newCs, newIp;
@@ -536,10 +524,9 @@ public class VM8086 {
 					newIp = vm.readMemoryShortPhysical(offsetToFarPtr);
 				} else {
 					offsetToFarPtr = decoded.readSource(vm);
-					newCs = vm.readMemoryShort16(segment.orElse(vm.registers.DS.shortValue()),
+					newCs = vm.readMemoryShort16((segment != null) ? segment : (vm.registers.DS.shortValue()),
 							(short) (offsetToFarPtr + 2));
-					/* BUG?? */
-					newIp = vm.readMemoryShort16(segment.orElse(vm.registers.DS.shortValue()),
+					newIp = vm.readMemoryShort16((segment != null) ? segment : (vm.registers.DS.shortValue()),
 							(short) (offsetToFarPtr));
 				}
 				vm.registers.CS.write(newCs);
@@ -561,7 +548,7 @@ public class VM8086 {
 			}
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) {
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) {
 				byte selfByte = bytes[0];
 				byte reg = (byte) (selfByte & 0x7);
 				Register16 operand = ModRegRmDecoder.instance.decodeReg(vm, reg);
@@ -585,7 +572,7 @@ public class VM8086 {
 			}
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) {
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) {
 				byte selfByte = bytes[0];
 				byte reg = (byte) ((selfByte & 0x18) >> 3);
 
@@ -598,62 +585,6 @@ public class VM8086 {
 			}
 		};
 
-		Instruction emulatorSpecific = new Instruction() {
-
-			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
-					throws CpuException {
-				if (true)
-					return;
-
-				byte byte2 = this.readImmediateBytes(vm, false)[0];
-				switch (byte2) {
-				case 0:
-					System.err.write((char) (vm.registers.AX.intValue() & 0xFF));
-					System.err.flush();
-					break;
-				case 1:
-					break;
-				case 2:
-					try (BufferedInputStream reader = new BufferedInputStream(
-							new FileInputStream(new File("C:\\Users\\Marcin\\Desktop\\oc86boot\\dos\\dos2.img")))) {
-						reader.skip(vm.registers.BP.intValue() << 9);
-						char[] output = new char[vm.registers.AX.intValue()];
-
-						// System.out.println("Reading " + vm.registers.AX.intValue() + " from "+
-						// vm.registers.BP.intValue());
-						int result = reader.read(vm.memory,
-								vm.registers.BX.intValue() + vm.registers.ES.intValue() * 16,
-								vm.registers.AX.intValue());
-						vm.registers.AX.write((short) result);
-						break;
-					} catch (FileNotFoundException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					} catch (IOException e1) {
-						// TODO Auto-generated catch block
-						e1.printStackTrace();
-					}
-					break;
-				case 3:
-					try (RandomAccessFile fh = new RandomAccessFile(
-							new File("C:\\Users\\Marcin\\Desktop\\oc86boot\\dos\\dos2.img"), "rw")) {
-						fh.seek(vm.registers.BP.intValue() << 9);
-						fh.write(vm.memory, vm.registers.BX.intValue() + vm.registers.ES.intValue() * 16,
-								vm.registers.AX.intValue());
-
-					} catch (FileNotFoundException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					} catch (IOException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					}
-					break;
-				}
-			}
-		};
-
 		decodeTable[0x06] = pushOrPopSreg;
 		decodeTable[0x0E] = pushOrPopSreg;
 		decodeTable[0x16] = pushOrPopSreg;
@@ -663,14 +594,22 @@ public class VM8086 {
 		 * According to https://en.wikipedia.org/wiki/X86_instruction_listings:
 		 * "POP CS (opcode 0x0F) works only on 8086/8088. Later CPUs use 0x0F as a prefix for newer instructions."
 		 */
-		// decodeTable[0x0F] = pushOrPopSreg;
-		decodeTable[0x0F] = emulatorSpecific;
+		decodeTable[0x0F] = new Instruction() {
+			@Override
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) throws CpuException {
+				byte subopcode = vm.getIpByte();
+				if (subopcode == 0x06) {
+					decodeTable[0xCF].execute(vm, bytes, data, segment);
+					//logState("0F 06");
+				}
+			}
+		};
 		decodeTable[0x17] = pushOrPopSreg;
 		decodeTable[0x1F] = pushOrPopSreg;
 
 		ModInstrRmInstructions pop = new ModInstrRmInstructions(new ModRegRmInstruction[] { new ModRegRmInstruction() {
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) {
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) {
 				ModRegRmDecoded decoded = (ModRegRmDecoded) data[0];
 				decoded.writeDestination(vm.popFromStack(), vm);
 			}
@@ -688,7 +627,7 @@ public class VM8086 {
 			}
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) {
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) {
 				ModRegRmDecoded decoded = (ModRegRmDecoded) data[0];
 				short data1 = decoded.readSource(vm);
 				short data2 = decoded.readDestination(vm);
@@ -704,7 +643,7 @@ public class VM8086 {
 		Instruction xchga = new Instruction() {
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) {
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) {
 				byte selfByte = bytes[0];
 				byte reg = (byte) (selfByte & 0x07);
 				Register16 regToXchg = ModRegRmDecoder.instance.decodeReg(vm, reg);
@@ -726,7 +665,7 @@ public class VM8086 {
 			}
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) {
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) {
 				byte selfByte = bytes[0];
 				byte immediate8 = (byte) (shortFromBytes((byte[]) data[0]) & 0xFF);
 
@@ -737,11 +676,13 @@ public class VM8086 {
 				boolean W = (selfByte & 0x01) != 0;
 				boolean D = getDirection(vm, selfByte);
 
-				if (D == false)
-					if (W)
+				if (D == false) {
+					if (W) {
 						registers.AX.writeDecoded(vm, W, (short) (vm.readPort((short) (immediate8 & 0xFF)) & 0xFFFF));
-					else
+					} else {
 						registers.AX.writeDecoded(vm, W, (short) (vm.readPortByte((byte) (immediate8 & 0xFF)) & 0xFF));
+					}
+				}
 				else {
 					short decoded = registers.AX.readDecoded(vm, W);
 					if (W) {
@@ -761,17 +702,20 @@ public class VM8086 {
 		Instruction inOrOut = new Instruction() {
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) {
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) {
 				byte selfByte = bytes[0];
 				boolean W = getWidth(vm, selfByte);
 				boolean D = getDirection(vm, selfByte);
 
-				if (D == false)
-					if (W)
+				if (D == false) {
+					if (W) {
 						registers.AX.writeDecoded(vm, W, (short) (vm.readPort(vm.registers.DX.shortValue()) & 0xFFFF));
-					else
+					}
+					else {
 						registers.AX.writeDecoded(vm, W,
 								(short) (vm.readPortByte(vm.registers.DX.shortValue()) & 0xFF));
+					}
+				}
 				else {
 					short decoded = registers.AX.readDecoded(vm, W);
 					if (W) {
@@ -791,8 +735,8 @@ public class VM8086 {
 		Instruction xlat = new Instruction() {
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) {
-				int effectiveAddress = vm.physicalAddressFromSegmentOffset(vm.registers.DS.shortValue(),
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) {
+				int effectiveAddress = vm.physicalAddressFromSegmentOffset(segment == null ? vm.registers.DS.shortValue() : segment,
 						vm.registers.BX.shortValue());
 				effectiveAddress += (vm.registers.AX.readLow() & 0xFF);
 				vm.registers.AX.writeLow(vm.readMemoryBytePhysical(effectiveAddress));
@@ -809,7 +753,7 @@ public class VM8086 {
 			}
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) {
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) {
 				ModRegRmDecoded decoded = (ModRegRmDecoded) data[0];
 				int effectiveAddress = decoded.readEffectiveAddressOfSource();
 				decoded.writeDestination((short) (effectiveAddress & 0xFFFF), vm);
@@ -827,7 +771,7 @@ public class VM8086 {
 		Instruction lahf = new Instruction() {
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) {
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) {
 				vm.registers.AX.writeHigh(vm.registers.FLAGS.readLow());
 			}
 		};
@@ -835,7 +779,7 @@ public class VM8086 {
 		Instruction sahf = new Instruction() {
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) {
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) {
 				vm.registers.FLAGS.writeLow(vm.registers.AX.readHigh());
 			}
 		};
@@ -846,14 +790,14 @@ public class VM8086 {
 		Instruction pushf = new Instruction() {
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) {
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) {
 				vm.pushToStack(vm.registers.FLAGS.shortValue());
 			}
 		};
 
 		Instruction popf = new Instruction() {
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) {
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) {
 				vm.registers.FLAGS.write(vm.popFromStack());
 			}
 		};
@@ -937,10 +881,10 @@ public class VM8086 {
 			}
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				ModRegRmDecoded decoded = (ModRegRmDecoded) data[0];
-				/* create a temp regitser to store the destination without overwriting it */
+				/* create a temp register to store the destination without overwriting it */
 				decoded.destination = vm.registers.createTempRegister(decoded.readDestination(vm));
 				super.execute(vm, bytes, data, segment);
 			}
@@ -993,7 +937,7 @@ public class VM8086 {
 		Instruction incReg = new Instruction() {
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				byte selfByte = bytes[0];
 				byte reg = (byte) (selfByte & 0x7);
@@ -1008,48 +952,42 @@ public class VM8086 {
 		for (int i = 0; i < 8; i++)
 			decodeTable[0x40 + i] = incReg;
 
-		/* this is some real black fucking magic */
 		Instruction aaa = new Instruction() {
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) {
-				if ((vm.registers.AX.readLow() & 0xF) > 9 || (0 != (vm.registers.FLAGS.shortValue() & AF))) {
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) {
+				if ((vm.registers.AX.readLow() & 0xF) > 9 || (0 != (vm.registers.FLAGS.shortValue() & MASK_AF))) {
 					vm.registers.AX.add(0x106);
-					vm.registers.FLAGS.write((short) (vm.registers.FLAGS.shortValue() | (CF | AF)));
+					vm.registers.FLAGS.write((short) (vm.registers.FLAGS.shortValue() | (MASK_CF | MASK_AF)));
 				} else {
-					vm.registers.FLAGS.write((short) (vm.registers.FLAGS.shortValue() & (~(CF | AF))));
+					vm.registers.FLAGS.write((short) (vm.registers.FLAGS.shortValue() & (~(MASK_CF | MASK_AF))));
 				}
 			}
 		};
 
 		decodeTable[0x37] = aaa;
 
-		/*
-		 * This is fucking ridiculous. I have no clue what that does - just implemented
-		 * the pseudocode from felixcloutier.com
-		 */
-		/* WONTFIX if this doesn't work */
 		Instruction daa = new Instruction() {
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) {
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) {
 				int oldAl = vm.registers.AX.readLow();
-				int oldCfMask = vm.registers.FLAGS.shortValue() & CF;
+				int oldCfMask = vm.registers.FLAGS.shortValue() & MASK_CF;
 				vm.registers.FLAGS.write((short) (vm.registers.FLAGS.shortValue() & (~oldCfMask)));
-				if ((vm.registers.AX.readLow() & 0xF) > 9 || (0 != (vm.registers.FLAGS.shortValue() & AF))) {
+				if ((vm.registers.AX.readLow() & 0xF) > 9 || (0 != (vm.registers.FLAGS.shortValue() & MASK_AF))) {
 					vm.registers.AX.writeLow((byte) (((oldAl & 0xFF) + 6) & 0xFF));
-					int newCfMask = (((int) (oldAl & 0xFF) + 6) > 0xFF) ? CF : 0;
+					int newCfMask = (((int) (oldAl & 0xFF) + 6) > 0xFF) ? MASK_CF : 0;
 					vm.registers.FLAGS.write((short) (vm.registers.FLAGS.intValue() | oldCfMask | newCfMask));
-					vm.registers.FLAGS.write((short) (vm.registers.FLAGS.shortValue() | AF));
+					vm.registers.FLAGS.write((short) (vm.registers.FLAGS.shortValue() | MASK_AF));
 				} else {
-					vm.registers.FLAGS.write((short) (vm.registers.FLAGS.shortValue() & (~AF)));
+					vm.registers.FLAGS.write((short) (vm.registers.FLAGS.shortValue() & (~MASK_AF)));
 				}
 				if ((oldAl & 0xFF) > 0x99 || (oldCfMask != 0)) {
 					oldAl = vm.registers.AX.readLow();
 					vm.registers.AX.writeLow((byte) (((oldAl & 0xFF) + 0x60) & 0xFF));
-					vm.registers.FLAGS.write((short) (vm.registers.FLAGS.shortValue() | CF));
+					vm.registers.FLAGS.write((short) (vm.registers.FLAGS.shortValue() | MASK_CF));
 				} else {
-					vm.registers.FLAGS.write((short) (vm.registers.FLAGS.shortValue() & (~CF)));
+					vm.registers.FLAGS.write((short) (vm.registers.FLAGS.shortValue() & (~MASK_CF)));
 				}
 			}
 		};
@@ -1107,7 +1045,7 @@ public class VM8086 {
 		Instruction decReg = new Instruction() {
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				byte selfByte = bytes[0];
 				byte reg = (byte) (selfByte & 0x7);
@@ -1220,10 +1158,10 @@ public class VM8086 {
 			}
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				ModRegRmDecoded decoded = (ModRegRmDecoded) data[0];
-				/* create a temp regitser to store the destination without overwriting it */
+				/* create a temp register to store the destination without overwriting it */
 				decoded.destination = vm.registers.createTempRegister(decoded.readDestination(vm));
 				super.execute(vm, bytes, data, segment);
 			}
@@ -1247,10 +1185,10 @@ public class VM8086 {
 			}
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				ModRegRmDecoded decoded = (ModRegRmDecoded) data[0];
-				/* create a temp regitser to store the destination without overwriting it */
+				/* create a temp register to store the destination without overwriting it */
 				decoded.destination = vm.registers.createTempRegister(decoded.readDestination(vm));
 				super.execute(vm, bytes, data, segment);
 			}
@@ -1269,7 +1207,7 @@ public class VM8086 {
 			}
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				short oldAx = vm.registers.AX.shortValue();
 				super.execute(vm, bytes, data, segment);
@@ -1283,13 +1221,13 @@ public class VM8086 {
 		Instruction aas = new Instruction() {
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) {
-				if ((vm.registers.AX.readLow() & 0xF) > 9 || (0 != (vm.registers.FLAGS.shortValue() & AF))) {
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) {
+				if ((vm.registers.AX.readLow() & 0xF) > 9 || (0 != (vm.registers.FLAGS.shortValue() & MASK_AF))) {
 					vm.registers.AX.add(-6);
 					vm.registers.AX.add(-0x100);
-					vm.registers.FLAGS.write((short) (vm.registers.FLAGS.shortValue() | (CF | AF)));
+					vm.registers.FLAGS.write((short) (vm.registers.FLAGS.shortValue() | (MASK_CF | MASK_AF)));
 				} else {
-					vm.registers.FLAGS.write((short) (vm.registers.FLAGS.shortValue() & (~(CF | AF))));
+					vm.registers.FLAGS.write((short) (vm.registers.FLAGS.shortValue() & (~(MASK_CF | MASK_AF))));
 				}
 
 				vm.registers.AX.write((short) (vm.registers.AX.intValue() & 0xFF0F));
@@ -1301,22 +1239,22 @@ public class VM8086 {
 		Instruction das = new Instruction() {
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) {
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) {
 				int oldAl = vm.registers.AX.readLow();
-				int oldCfMask = vm.registers.FLAGS.shortValue() & CF;
+				int oldCfMask = vm.registers.FLAGS.shortValue() & MASK_CF;
 				vm.registers.FLAGS.write((short) (vm.registers.FLAGS.shortValue() & (~oldCfMask)));
-				if ((vm.registers.AX.readLow() & 0xF) > 9 || (0 != (vm.registers.FLAGS.shortValue() & AF))) {
+				if ((vm.registers.AX.readLow() & 0xF) > 9 || (0 != (vm.registers.FLAGS.shortValue() & MASK_AF))) {
 					vm.registers.AX.writeLow((byte) (((oldAl & 0xFF) - 6) & 0xFF));
-					int newCfMask = ((((int) (oldAl & 0xFF) - 6) & 0xFFF) > 0xFF) ? CF : 0;
+					int newCfMask = ((((int) (oldAl & 0xFF) - 6) & 0xFFF) > 0xFF) ? MASK_CF : 0;
 					vm.registers.FLAGS.write((short) (vm.registers.FLAGS.intValue() | oldCfMask | newCfMask));
-					vm.registers.FLAGS.write((short) (vm.registers.FLAGS.shortValue() | AF));
+					vm.registers.FLAGS.write((short) (vm.registers.FLAGS.shortValue() | MASK_AF));
 				} else {
-					vm.registers.FLAGS.write((short) (vm.registers.FLAGS.shortValue() & (~AF)));
+					vm.registers.FLAGS.write((short) (vm.registers.FLAGS.shortValue() & (~MASK_AF)));
 				}
 				if ((oldAl & 0xFF) > 0x99 || (oldCfMask != 0)) {
 					oldAl = vm.registers.AX.readLow();
 					vm.registers.AX.writeLow((byte) (((oldAl & 0xFF) - 0x60) & 0xFF));
-					vm.registers.FLAGS.write((short) (vm.registers.FLAGS.shortValue() | CF));
+					vm.registers.FLAGS.write((short) (vm.registers.FLAGS.shortValue() | MASK_CF));
 				}
 			}
 		};
@@ -1331,7 +1269,7 @@ public class VM8086 {
 			}
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				int tempAl = vm.registers.AX.readLow() & 0xFF;
 
@@ -1355,7 +1293,7 @@ public class VM8086 {
 			}
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				int tempAl = vm.registers.AX.readLow() & 0xFF;
 				int tempAh = vm.registers.AX.readHigh() & 0xFF;
@@ -1372,7 +1310,7 @@ public class VM8086 {
 		Instruction cbw = new Instruction() {
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				if (vm.registers.AX.readLow() < 0)
 					vm.registers.AX.writeHigh((byte) 0xFF);
@@ -1385,7 +1323,7 @@ public class VM8086 {
 
 		Instruction cwd = new Instruction() {
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				if (vm.registers.AX.shortValue() < 0)
 					vm.registers.DX.write((short) 0xFFFF);
@@ -1401,7 +1339,7 @@ public class VM8086 {
 			public int onIteration(VM8086 vm, int currentIndex, int maxCounter, int currentData, int bitcount) {
 				boolean msbSet = vm.isMsbSet(currentData, bitcount);
 				int setMask = calculateFlagSetMask(currentData, (short) (currentData & getBitmask(bitcount)), bitcount);
-				vm.adjustFlags(CF | ZF | SF | PF, msbSet ? CF : 0 | setMask);
+				vm.adjustFlags(MASK_CF | MASK_ZF | MASK_SF | MASK_PF, msbSet ? MASK_CF : 0 | setMask);
 				return (currentData << 1) & vm.getBitmask(bitcount);
 			}
 		};
@@ -1411,7 +1349,7 @@ public class VM8086 {
 			public int onIteration(VM8086 vm, int currentIndex, int maxCounter, int currentData, int bitcount) {
 				boolean lsbSet = 0 != (currentData & 1);
 				int setMask = calculateFlagSetMask(currentData, (short) (currentData & getBitmask(bitcount)), bitcount);
-				vm.adjustFlags(CF | ZF | SF | PF, lsbSet ? CF : 0 | setMask);
+				vm.adjustFlags(MASK_CF | MASK_ZF | MASK_SF | MASK_PF, lsbSet ? MASK_CF : 0 | setMask);
 				return (currentData >> 1) & vm.getBitmask(bitcount);
 			}
 		};
@@ -1422,7 +1360,7 @@ public class VM8086 {
 				boolean lsbSet = 0 != (currentData & 1);
 				boolean msbSet = vm.isMsbSet(currentData, bitcount);
 				int setMask = calculateFlagSetMask(currentData, (short) (currentData & getBitmask(bitcount)), bitcount);
-				vm.adjustFlags(CF | ZF | SF | PF, lsbSet ? CF : 0 | setMask);
+				vm.adjustFlags(MASK_CF | MASK_ZF | MASK_SF | MASK_PF, lsbSet ? MASK_CF : 0 | setMask);
 				return vm.setMsb((currentData >> 1), bitcount, msbSet) & vm.getBitmask(bitcount);
 			}
 		};
@@ -1435,7 +1373,7 @@ public class VM8086 {
 			}
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				int count = this.getCount(vm, bytes[0]);
 				ModRegRmDecoded decoded = (ModRegRmDecoded) data[0];
@@ -1445,12 +1383,12 @@ public class VM8086 {
 				int dst = decoded.readDestination(vm) & 0xFFFF;
 
 				if ((count & 0xF) != 0) {
-					vm.adjustFlags(CF, (0 != (dst & 1)) ? CF : 0);
+					vm.adjustFlags(MASK_CF, (0 != (dst & 1)) ? MASK_CF : 0);
 				}
 				if ((count & 0xF) == 1) {
-					boolean cfSet = 0 != (vm.registers.FLAGS.intValue() & CF);
+					boolean cfSet = 0 != (vm.registers.FLAGS.intValue() & MASK_CF);
 					boolean msbSet = vm.isMsbSet(dst, bitnumber);
-					vm.adjustFlags(OF, (cfSet != msbSet) ? OF : 0);
+					vm.adjustFlags(MASK_OF, (cfSet != msbSet) ? MASK_OF : 0);
 				}
 			}
 		};
@@ -1464,7 +1402,7 @@ public class VM8086 {
 			}
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				int count = this.getCount(vm, bytes[0]);
 				ModRegRmDecoded decoded = (ModRegRmDecoded) data[0];
@@ -1474,15 +1412,15 @@ public class VM8086 {
 				int dst = decoded.readDestination(vm) & 0xFFFF;
 
 				if ((count & 0xF) != 0) {
-					vm.adjustFlags(CF, (vm.isMsbSet(count, bitnumber)) ? CF : 0);
+					vm.adjustFlags(MASK_CF, (vm.isMsbSet(count, bitnumber)) ? MASK_CF : 0);
 				}
 				if ((count & 0xF) == 1) {
 					/*
 					 * FIXME: documentation unclear "OF := MSB(DEST) XOR MSB − 1(DEST);"
 					 */
-					boolean cfSet = 0 != (vm.registers.FLAGS.intValue() & CF);
+					boolean cfSet = 0 != (vm.registers.FLAGS.intValue() & MASK_CF);
 					boolean msbSet = vm.isMsbSet(dst, bitnumber);
-					vm.adjustFlags(OF, (cfSet != msbSet) ? OF : 0);
+					vm.adjustFlags(MASK_OF, (cfSet != msbSet) ? MASK_OF : 0);
 				}
 			}
 		};
@@ -1492,15 +1430,15 @@ public class VM8086 {
 			@Override
 			public int onIteration(VM8086 vm, int currentIndex, int maxCounter, int currentData, int bitcount) {
 				boolean tempCF = vm.isMsbSet(currentData, bitcount);
-				boolean CFset = (vm.registers.FLAGS.intValue() & CF) != 0;
+				boolean CFset = (vm.registers.FLAGS.intValue() & MASK_CF) != 0;
 				currentData = (currentData << 1) + (CFset ? 1 : 0);
 				int setMask = calculateFlagSetMask(currentData, (short) (currentData & getBitmask(bitcount)), bitcount);
-				vm.adjustFlags(CF | ZF | SF | PF, tempCF ? CF : 0 | setMask);
+				vm.adjustFlags(MASK_CF | MASK_ZF | MASK_SF | MASK_PF, tempCF ? MASK_CF : 0 | setMask);
 				return currentData & vm.getBitmask(bitcount + 1);
 			}
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				int count = getCount(vm, bytes[0]);
 				ModRegRmDecoded decoded = (ModRegRmDecoded) data[0];
@@ -1508,9 +1446,9 @@ public class VM8086 {
 				super.execute(vm, bytes, data, segment);
 				int dst = decoded.readDestination(vm) & 0xFFFF;
 				if ((count & 0xF) == 1) {
-					boolean cfSet = 0 != (vm.registers.FLAGS.intValue() & CF);
+					boolean cfSet = 0 != (vm.registers.FLAGS.intValue() & MASK_CF);
 					boolean msbSet = vm.isMsbSet(dst, bitnumber);
-					vm.adjustFlags(OF, (cfSet != msbSet) ? OF : 0);
+					vm.adjustFlags(MASK_OF, (cfSet != msbSet) ? MASK_OF : 0);
 				}
 			}
 		};
@@ -1520,15 +1458,15 @@ public class VM8086 {
 			@Override
 			public int onIteration(VM8086 vm, int currentIndex, int maxCounter, int currentData, int bitcount) {
 				boolean tempCF = (currentData & 1) != 0;
-				boolean CFset = (vm.registers.FLAGS.intValue() & CF) != 0;
+				boolean CFset = (vm.registers.FLAGS.intValue() & MASK_CF) != 0;
 				currentData = (currentData >> 1) + (CFset ? (1 << bitcount) : 0);
 				int setMask = calculateFlagSetMask(currentData, (short) (currentData & getBitmask(bitcount)), bitcount);
-				vm.adjustFlags(CF | ZF | SF | PF, tempCF ? CF : 0 | setMask);
+				vm.adjustFlags(MASK_CF | MASK_ZF | MASK_SF | MASK_PF, tempCF ? MASK_CF : 0 | setMask);
 				return currentData & vm.getBitmask(bitcount + 1);
 			}
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				int count = getCount(vm, bytes[0]);
 				ModRegRmDecoded decoded = (ModRegRmDecoded) data[0];
@@ -1536,9 +1474,9 @@ public class VM8086 {
 
 				int dst = decoded.readDestination(vm) & 0xFFFF;
 				if ((count & 0xF) == 1) {
-					boolean cfSet = 0 != (vm.registers.FLAGS.intValue() & CF);
+					boolean cfSet = 0 != (vm.registers.FLAGS.intValue() & MASK_CF);
 					boolean msbSet = vm.isMsbSet(dst, bitnumber);
-					vm.adjustFlags(OF, (cfSet != msbSet) ? OF : 0);
+					vm.adjustFlags(MASK_OF, (cfSet != msbSet) ? MASK_OF : 0);
 				}
 
 				super.execute(vm, bytes, data, segment);
@@ -1579,10 +1517,10 @@ public class VM8086 {
 		LogicModRegRmInstruction test = new LogicModRegRmInstruction() {
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				ModRegRmDecoded decoded = (ModRegRmDecoded) data[0];
-				/* create a temp regitser to store the destination without overwriting it */
+				/* create a temp register to store the destination without overwriting it */
 				decoded.destination = vm.registers.createTempRegister(decoded.readDestination(vm));
 				super.execute(vm, bytes, data, segment);
 			}
@@ -1599,7 +1537,7 @@ public class VM8086 {
 		LogicInstructionImmA testImmA = new LogicInstructionImmA() {
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				short originalAx = vm.registers.AX.shortValue();
 
@@ -1837,7 +1775,7 @@ public class VM8086 {
 
 		Instruction shortCallRel = new Instruction() {
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				short destination;
 				/* read two bytes */
@@ -1852,7 +1790,7 @@ public class VM8086 {
 
 		Instruction farCall = new Instruction() {
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				short destinationOffset, destinationSegment;
 				/* read two bytes for the offset */
@@ -1880,7 +1818,7 @@ public class VM8086 {
 			}
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				short destination;
 				byte selfByte = bytes[0];
@@ -1904,7 +1842,7 @@ public class VM8086 {
 
 		Instruction farJmp = new Instruction() {
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				short destinationOffset, destinationSegment;
 				/* read two bytes for the offset */
@@ -1924,11 +1862,8 @@ public class VM8086 {
 
 		Instruction ret = new Instruction() {
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
-				int cs = registers.CS.intValue();
-				int ip = registers.IP.intValue();
-				String location = String.format("%04x:%04x (%05x)", cs, ip, ip + cs * 16);
 				vm.registers.IP.write(vm.popFromStack());
 			}
 		};
@@ -1942,7 +1877,7 @@ public class VM8086 {
 			}
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				byte[] immData = (byte[]) data[0];
 				int stackChange = vm.shortFromBytes(immData) & 0xFFFF;
@@ -1955,7 +1890,7 @@ public class VM8086 {
 
 		Instruction retFar = new Instruction() {
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				vm.registers.IP.write(vm.popFromStack());
 				vm.registers.CS.write(vm.popFromStack());
@@ -1971,7 +1906,7 @@ public class VM8086 {
 			}
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				byte[] immData = (byte[]) data[0];
 				int stackChange = vm.shortFromBytes(immData) & 0xFFFF;
@@ -1985,27 +1920,27 @@ public class VM8086 {
 
 		/* conditional jumps */
 
-		JmpFlagInstruction ja = new JmpFlagInstruction(CF | ZF, 0);
+		JmpFlagInstruction ja = new JmpFlagInstruction(MASK_CF | MASK_ZF, 0);
 		decodeTable[0x77] = ja;
 
-		JmpFlagInstruction jae = new JmpFlagInstruction(CF, 0);
+		JmpFlagInstruction jae = new JmpFlagInstruction(MASK_CF, 0);
 		decodeTable[0x73] = jae;
 
-		JmpFlagInstruction jb = new JmpFlagInstruction(CF, CF);
+		JmpFlagInstruction jb = new JmpFlagInstruction(MASK_CF, MASK_CF);
 		decodeTable[0x72] = jb;
 
-		JmpFlagInstruction je = new JmpFlagInstruction(ZF, ZF);
+		JmpFlagInstruction je = new JmpFlagInstruction(MASK_ZF, MASK_ZF);
 		decodeTable[0x74] = je;
 
-		JmpFlagInstruction jne = new JmpFlagInstruction(ZF, 0);
+		JmpFlagInstruction jne = new JmpFlagInstruction(MASK_ZF, 0);
 		decodeTable[0x75] = jne;
 
 		JmpConditionalInstruction jl = new JmpConditionalInstruction() {
 			@Override
 			public boolean checkCondition(VM8086 vm, byte selfByte) {
-				boolean Ofset = (vm.registers.FLAGS.intValue() & OF) != 0;
-				boolean Sfset = (vm.registers.FLAGS.intValue() & SF) != 0;
-				return Ofset != Sfset;
+				boolean ofSet = (vm.registers.FLAGS.intValue() & MASK_OF) != 0;
+				boolean sfSet = (vm.registers.FLAGS.intValue() & MASK_SF) != 0;
+				return ofSet != sfSet;
 			}
 		};
 		decodeTable[0x7C] = jl;
@@ -2046,22 +1981,22 @@ public class VM8086 {
 		};
 		decodeTable[0x76] = jbe;
 
-		JmpFlagInstruction jp = new JmpFlagInstruction(PF, PF);
+		JmpFlagInstruction jp = new JmpFlagInstruction(MASK_PF, MASK_PF);
 		decodeTable[0x7A] = jp;
 
-		JmpFlagInstruction jnp = new JmpFlagInstruction(PF, 0);
+		JmpFlagInstruction jnp = new JmpFlagInstruction(MASK_PF, 0);
 		decodeTable[0x7B] = jnp;
 
-		JmpFlagInstruction jo = new JmpFlagInstruction(OF, OF);
+		JmpFlagInstruction jo = new JmpFlagInstruction(MASK_OF, MASK_OF);
 		decodeTable[0x70] = jo;
 
-		JmpFlagInstruction jno = new JmpFlagInstruction(OF, 0);
+		JmpFlagInstruction jno = new JmpFlagInstruction(MASK_OF, 0);
 		decodeTable[0x71] = jno;
 
-		JmpFlagInstruction js = new JmpFlagInstruction(SF, SF);
+		JmpFlagInstruction js = new JmpFlagInstruction(MASK_SF, MASK_SF);
 		decodeTable[0x78] = js;
 
-		JmpFlagInstruction jns = new JmpFlagInstruction(SF, 0);
+		JmpFlagInstruction jns = new JmpFlagInstruction(MASK_SF, 0);
 		decodeTable[0x79] = jns;
 
 		/* loops */
@@ -2118,14 +2053,8 @@ public class VM8086 {
 			}
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
-				// System.out.println("Interrupt " + String.format("%X", ((byte[]) data[0])[0])
-				// + " " + vm.registers.CS + " " +
-				// vm.registers.AX + " " +vm.registers.BX +" " + vm.registers.CX + " " +
-				// vm.registers.DX + " " +
-				// vm.registers.ES + ":" + vm.registers.BX + " " + vm.registers.DS);
-
 				vm.startInterrupt(((byte[]) data[0])[0], vm.registers.IP.shortValue(), vm.registers.CS.shortValue(),
 						vm.registers.FLAGS.shortValue());
 			}
@@ -2136,7 +2065,7 @@ public class VM8086 {
 		Instruction int3 = new Instruction() {
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				vm.startInterrupt((byte) 3, vm.registers.IP.shortValue(), vm.registers.CS.shortValue(),
 						vm.registers.FLAGS.shortValue());
@@ -2148,9 +2077,9 @@ public class VM8086 {
 		Instruction intO = new Instruction() {
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
-				if ((vm.registers.FLAGS.intValue() & OF) != 0)
+				if ((vm.registers.FLAGS.intValue() & MASK_OF) != 0)
 					vm.startInterrupt((byte) 3, vm.registers.IP.shortValue(), vm.registers.CS.shortValue(),
 							vm.registers.FLAGS.shortValue());
 			}
@@ -2161,7 +2090,7 @@ public class VM8086 {
 		Instruction iret = new Instruction() {
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				vm.registers.IP.write(vm.popFromStack());
 				vm.registers.CS.write(vm.popFromStack());
@@ -2171,14 +2100,14 @@ public class VM8086 {
 
 		decodeTable[0xCF] = iret;
 
-		/* flags control */
+		/* FLAGS control instructions */
 
 		Instruction clc = new Instruction() {
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
-				vm.registers.FLAGS.write((short) (vm.registers.FLAGS.intValue() & (~CF)));
+				vm.registers.FLAGS.write((short) (vm.registers.FLAGS.intValue() & (~MASK_CF)));
 			}
 		};
 
@@ -2187,9 +2116,9 @@ public class VM8086 {
 		Instruction cmc = new Instruction() {
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
-				vm.registers.FLAGS.write((short) (vm.registers.FLAGS.intValue() ^ (CF)));
+				vm.registers.FLAGS.write((short) (vm.registers.FLAGS.intValue() ^ (MASK_CF)));
 			}
 		};
 
@@ -2198,9 +2127,9 @@ public class VM8086 {
 		Instruction stc = new Instruction() {
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
-				vm.registers.FLAGS.write((short) (vm.registers.FLAGS.intValue() | CF));
+				vm.registers.FLAGS.write((short) (vm.registers.FLAGS.intValue() | MASK_CF));
 			}
 		};
 
@@ -2209,9 +2138,9 @@ public class VM8086 {
 		Instruction cld = new Instruction() {
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
-				vm.registers.FLAGS.write((short) (vm.registers.FLAGS.intValue() & (~DF)));
+				vm.registers.FLAGS.write((short) (vm.registers.FLAGS.intValue() & (~MASK_DF)));
 			}
 		};
 
@@ -2220,9 +2149,9 @@ public class VM8086 {
 		Instruction std = new Instruction() {
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
-				vm.registers.FLAGS.write((short) (vm.registers.FLAGS.intValue() | DF));
+				vm.registers.FLAGS.write((short) (vm.registers.FLAGS.intValue() | MASK_DF));
 			}
 		};
 
@@ -2231,9 +2160,9 @@ public class VM8086 {
 		Instruction cli = new Instruction() {
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
-				vm.registers.FLAGS.write((short) (vm.registers.FLAGS.intValue() & (~IF)));
+				vm.registers.FLAGS.write((short) (vm.registers.FLAGS.intValue() & (~MASK_IF)));
 			}
 		};
 
@@ -2242,9 +2171,9 @@ public class VM8086 {
 		Instruction sti = new Instruction() {
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
-				vm.registers.FLAGS.write((short) (vm.registers.FLAGS.intValue() | IF));
+				vm.registers.FLAGS.write((short) (vm.registers.FLAGS.intValue() | MASK_IF));
 			}
 		};
 
@@ -2255,7 +2184,7 @@ public class VM8086 {
 		Instruction fwait = new Instruction() {
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				// TODO Auto-generated method stub
 			}
@@ -2266,7 +2195,7 @@ public class VM8086 {
 		Instruction lock = new Instruction() {
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				// TODO Auto-generated method stub
 			}
@@ -2277,7 +2206,7 @@ public class VM8086 {
 		ModRegRmInstruction esc = new ModRegRmInstruction() {
 
 			@Override
-			protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment)
+            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment)
 					throws CpuException {
 				// TODO Auto-generated method stub
 			}
@@ -2306,21 +2235,14 @@ public class VM8086 {
 		return currentData | (msbSet ? (1 << (bitcount - 1)) : 0);
 	}
 
-	ArrayList<IPortSpaceDevice> portSpaceDevices = new ArrayList<IPortSpaceDevice>();
-
 	protected short readPort(short s) {
 		int result = readPortByte(s) & 0xFF;
 		result |= ((readPortByte(s) & 0xFF) << 8);
 		return (short) (result & 0xFFFF);
 	}
 
-	public byte[] ioPorts = new byte[65536];
-
 	protected byte readPortByte(short s) {
 		ioPorts[0x20] = 0; // PIC EOI
-		// io_ports[0x42] = --io_ports[0x40]; // PIT channel 0/2 read placeholder
-		// if (s == 0x60)
-		// io_ports[0x64] = 0; // Scancode read flag
 
 		for (IPortSpaceDevice device : portSpaceDevices) {
 			if (device.matchPort(s)) {
@@ -2329,8 +2251,6 @@ public class VM8086 {
 		}
 
 		return ioPorts[s & 0xFFFF];
-		// System.err.println("Warning - invalid port " + s);
-		// return (byte) 0xFF;
 	}
 
 	protected void writePort(short s, short data) {
@@ -2339,18 +2259,6 @@ public class VM8086 {
 	}
 
 	protected void writePortByte(short s, byte data) {
-		// boolean a;
-		// if (s == 0x40 || s == 0x42) memory[0x469 + s] = data; // PIT rate programming
-		// a =s == 0x3D5 && (io_ports[0x3D4] >> 1 == 6) && (mem[0x4AD +
-		// !(io_ports[0x3D4] & 1)] = regs8[REG_AL]); // CRT video RAM start offset
-		// a =s == 0x3D5 && (io_ports[0x3D4] >> 1 == 7) && (scratch2_uint =
-		// ((mem[0x49E]*80 + mem[0x49D] + CAST(short)mem[0x4AD]) & (io_ports[0x3D4] & 1
-		// ? 0xFF00 : 0xFF)) + (regs8[REG_AL] << (io_ports[0x3D4] & 1 ? 0 : 8)) -
-		// CAST(short)mem[0x4AD], mem[0x49D] = scratch2_uint % 80, mem[0x49E] =
-		// scratch2_uint / 80); // CRT cursor position
-		// a =s == 0x3B5 && io_ports[0x3B4] == 1 && (GRAPHICS_X = data * 16); //
-		// Hercules resolution reprogramming. Defaults are set in the BIOS
-		// a =s == 0x3B5 && io_ports[0x3B4] == 6 && (GRAPHICS_Y = data * 4);
 
 		for (IPortSpaceDevice device : portSpaceDevices) {
 			if (device.matchPort(s)) {
@@ -2362,19 +2270,23 @@ public class VM8086 {
 		ioPorts[s & 0xFFFF] = data;
 	}
 
+	private void logState(String reason) {
+		System.out.printf("CS:IP=%s:%s " + reason + " - AX=%s ES:BX=%s:%s CX=%s DX=%s\n", registers.CS.toString(), registers.IP.toString(), registers.AX.toString(),
+				registers.ES.toString(),registers.BX.toString(), registers.CX.toString(), registers.DX.toString());
+	}
+
 	public void startInterrupt(byte interruptNumber, short originalIp, short originalCs, short flags) {
-		if (interruptNumber == 0x13) {
-			System.out.println(registers.AX + " " + registers.BX + " " + registers.CX + " " + registers.DX + " "
-					+ registers.SP + " " + registers.ES + " " + registers.DS + " " + registers.SS);
+		if (ipLogging) {
+			logState(String.format("INT%X", interruptNumber));
 		}
 
-		isHalted = false;
+		halted = false;
 		this.pushToStack(flags);
 		this.pushToStack(originalCs);
 		this.pushToStack(originalIp);
 
 		IvtEntry ivtEntry = this.readIvtEntry(interruptNumber);
-		this.registers.FLAGS.write((short) (flags & (~(IF | TF))));
+		this.registers.FLAGS.write((short) (flags & (~(MASK_IF | MASK_TF))));
 		this.registers.CS.write(ivtEntry.Cs);
 		this.registers.IP.write(ivtEntry.Ip);
 	}
@@ -2399,19 +2311,19 @@ public class VM8086 {
 		}
 
 		if (bitsSet % 2 == 0)
-			mask |= PF;
+			mask |= MASK_PF;
 
 		if (postcut == 0)
-			mask |= ZF;
+			mask |= MASK_ZF;
 
 		int signMask = (1 << (bits - 1));
 
 		if ((postcut & signMask) != 0)
-			mask |= SF;
+			mask |= MASK_SF;
 
 		int carryMask = ~((1 << bits) - 1);
 		if ((precut & carryMask) != 0)
-			mask |= CF;
+			mask |= MASK_CF;
 
 		return mask;
 	}
@@ -2432,15 +2344,12 @@ public class VM8086 {
 	}
 
 	public void run() {
-		isRunning = true;
+		running = true;
 
-		while (isRunning) {
-			isRunning = step();
+		while (running) {
+			running = step();
 		}
 	}
-
-	public boolean isRunning = false;
-	boolean isHalted = false;
 
 	public static final short VGA_ROM_F16[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7e, 0x81, 0xa5, 0x81, 0x81, 0xbd, 0x99, 0x81, 0x81, 0x7e, 0x00, 0x00,
@@ -2671,155 +2580,50 @@ public class VM8086 {
 			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7c, 0x7c, 0x7c, 0x7c, 0x7c, 0x7c, 0x7c, 0x00, 0x00, 0x00, 0x00, 0x00,
 			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
-	/**
-	 * Executes a given number of instructions.
-	 * 
-	 * @return false if the execution was terminated whilst executing the
-	 *         instructions.
-	 */
+	@Override
 	public boolean step(int times) {
-		for (int i = 0; i < times && isRunning && !isHalted; i++) {
-			if (isHalted && (registers.FLAGS.intValue() & Registers8086.IF) == 0) {
-				isRunning = false;
+		for (int i = 0; i < times && running; i++) {
+			if (halted && (registers.FLAGS.intValue() & Registers8086.MASK_IF) == 0) {
+				running = false;
 				return false;
 			}
-			boolean state = step();
-			if (state == false)
+
+			if (!step()) {
 				return false;
-		}
-		return isRunning;
-	}
-
-	int dupa = 0;
-
-	private String disasm(short cs, short ip) {
-		StringBuilder builder = new StringBuilder();
-
-		Runtime r = Runtime.getRuntime();
-		String workingDir = Paths.get(".").toAbsolutePath().normalize().toString();
-		File dump = new File(workingDir + "\\dump.bin");
-		try {
-			byte[] snippet = new byte[10];
-			for (int i = 0; i < 10; i++) {
-				snippet[i] = readMemoryByte16(cs, (short) (ip + i));
 			}
-			Files.write(snippet, dump);
-			Process disasm = r.exec("ndisasm -b 16 -o " + ip + " dump.bin");
-			disasm.waitFor();
-			BufferedReader b = new BufferedReader(new InputStreamReader(disasm.getInputStream()));
-
-			builder.append(b.readLine().substring(28));
-
-			b.close();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
 		}
-
-		return builder.toString();
+		return running;
 	}
 
-	private static BufferedReader br;
-	static {
-		try {
-			br = new BufferedReader(new FileReader("C:\\Users\\Marcin\\Desktop\\oc86boot\\tiny8086\\output.txt"));
-		} catch (Exception e) {
-			throw new RuntimeException(e);
-		}
-	}
-
-	private static String prev;
-	private short prevDx = -1;
-
+	@Override
 	public boolean step() {
-		if (masterPic.peek() != null) {
+		//pit.onStep();
+
+		if (masterPic.peek() != null && (registers.FLAGS.intValue() & Registers8086.MASK_IF) != 0) {
 			InterruptRequest request = masterPic.consume();
-			// System.out.println("Executing interrupt request " + request.getVector());
 			this.startInterrupt((byte) request.getVector());
-			return isRunning;
+			return running;
 		}
 
-		if (keyboardController != null && keyboardController.getKeyboard() != null)
+		if (keyboardController != null && keyboardController.getKeyboard() != null) {
 			keyboardController.getKeyboard().handleKeystrokeQueue(this);
-
-		int cs = registers.CS.intValue();
-		int ip = registers.IP.intValue();
-		byte instructionByte = this.readMemoryByte16((short) cs, (short) ip);
-
-		if (/* readMemoryBytePhysical(0x1b65 + 0xf0000 + 0x100) != 0xd */warnEnable) {
-			try {
-				String knownGood = br.readLine();
-				instructionIdx++;
-
-				if (instructionIdx >= 0) {
-
-					String location = String.format("%04x:%04x (%x)", cs, ip, ip + cs * 16);
-					String currentInstr = location + " " + "ES:DI=" + this.registers.ES.toString() + ":"
-							+ this.registers.DI.toString() + " DS:SI=" + this.registers.DS.toString() + ":"
-							+ this.registers.SI.toString() + " " + "BP=" + this.registers.BP.toString() + " " + "FLAGS="
-							+ String.format("%04X", this.registers.FLAGS.intValue() | 0xF002) + " AX="
-							+ this.registers.AX.toString() + " BX=" + this.registers.BX.toString() + " CX="
-							+ this.registers.CX.toString() + " DX=" + this.registers.DX.toString();
-					/*
-					 * + " [9001:BE76]=" + String.format("%04X",
-					 * this.readMemoryShort16((short)0x9001, (short)0xbe76) & 0xFFFF) +
-					 * " [0000:E3D6]=" + String.format("%04X", this.readMemoryShortPhysical(0xE3D6))
-					 * + " [0000:E30C]=" + String.format("%04X",
-					 * this.readMemoryShortPhysical(0xE30C));
-					 */
-
-					// if (instructionIdx % 100000 == 0) {
-					// System.out.println((instructionIdx * 100.0 / 6037420.0) + "% " + knownGood);
-					// }
-
-					// if (knownGood != null && instructionIdx > 2 && knownGood.substring(0,
-					// 10).equals(currentInstr.substring(0, 10)) == false) {
-					// String disasm = disasm((short) cs, (short) ip);
-					// warnEnable = true;
-					// System.out.println("LINE: " + instructionIdx);
-					// System.out.println("DISCREPANCY:\n" +currentInstr + " " + disasm);
-					// System.out.println(knownGood);
-					// System.out.println("PREV: " + prev);
-					// }
-					// else if (knownGood != null && warnEnable || instructionIdx >= 111086160){
-					String disasm = disasm((short) cs, (short) ip);
-					System.out.println("[" + instructionIdx + "] " + currentInstr + " " + disasm);
-					// }
-
-					prev = currentInstr;
-				}
-			} catch (IOException e) {
-				throw new RuntimeException(e);
-			}
-
 		}
+
+		if (registers.IP.intValue() == 0x0BEB && registers.CS.intValue() == 0x9E58) {
+			//ipLogging = true;
+		}
+
 		Instruction currentInstruction = fetch();
 		try {
 			if (currentInstruction == null)
 				throw new UndefinedOpcodeException(this);
-			prevDx = this.registers.DX.shortValue();
-			currentInstruction.decodeAndExecute(this, Optional.empty());
-			/*
-			 * if (((int)cs == 0x1fe0 && ip == 0x7da2) || d.contains("dx") ||
-			 * d.contains("dl")) { String d = disasm((short) cs, (short) ip); String
-			 * location = String.format("%04x:%04x (%x)", cs, ip, ip + cs * 16); if
-			 * (location.endsWith("0117)") == false) System.out.println("After " + location
-			 * + ", byte " + (instructionByte & 0xFF) + " ndisasm: " + d + " dx is " +
-			 * registers.DX); }
-			 */
+			currentInstruction.decodeAndExecute(this, null);
 		} catch (CpuException e) {
-
-			try {
-				Files.write(memory, new File("C:\\Users\\Marcin\\Desktop\\oc86boot\\dump2.bin"));
-			} catch (IOException e2) {
-				e2.printStackTrace();
-			}
 			e.startInterrupt();
 		}
-		return isRunning;
+
+		executeCount++;
+		return running;
 	}
 
 	/**
@@ -2834,7 +2638,76 @@ public class VM8086 {
 		this.keyboardController.setKeyboard(ps2keyboard);
 	}
 
+	@Override
 	public boolean shouldStep() {
-		return this.isRunning && !this.isHalted;
+		return this.running && !this.halted;
+	}
+
+	@Override
+	public boolean isHalted() {
+		return this.halted;
+	}
+
+	@Override
+	public void setHalted(boolean halted) {
+		this.halted = halted;
+	}
+
+	@Override
+	public boolean isRunning() {
+		return this.running;
+	}
+
+	@Override
+	public void setRunning(boolean running) {
+		this.running = running;
+	}
+
+	@Override
+	public void load(IStateStorage stateStorage) throws IOException {
+		for (int i = 0; i < memory.length; i++) {
+			byte[] memory = stateStorage.getBlob(String.format("memory%X", i)).orElse(null);
+
+			if (memory == null)
+				continue;
+
+			this.memory[i].setData(memory);
+		}
+
+		for (Register16 register : registers) {
+			register.write(stateStorage.getShort(register.getName()).orElse(register.shortValue()));
+		}
+
+		setHalted(stateStorage.getBoolean("halted").orElse(isHalted()));
+		setRunning(stateStorage.getBoolean("running").orElse(isRunning()));
+
+		for (IStateful device : statefulDevices) {
+			device.load(stateStorage);
+		}
+	}
+
+	@Override
+	public void save(IStateStorage stateStorage) throws IOException {
+		for (int i = 0; i < memory.length; i++) {
+			stateStorage.setBlob(String.format("memory%X", i), memory[i].getData());
+		}
+
+		for (Register16 register : registers) {
+			stateStorage.set(register.getName(), register.shortValue());
+		}
+
+		stateStorage.set("halted", isHalted());
+		stateStorage.set("running", isRunning());
+
+		for (IStateful device : statefulDevices) {
+			device.save(stateStorage);
+		}
+	}
+
+	@Override
+	public void deleteSaved(IStateStorage storage) throws IOException {
+		for (int i = 0; i < memory.length; i++) {
+			storage.deleteBlob(String.format("memory%X", i));
+		}
 	}
 }

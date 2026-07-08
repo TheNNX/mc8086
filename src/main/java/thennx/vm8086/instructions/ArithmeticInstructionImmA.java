@@ -17,7 +17,7 @@ public abstract class ArithmeticInstructionImmA extends ImmediateInstruction imp
 	}
 
 	@Override
-	protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) throws CpuException {
+    public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) throws CpuException {
 		byte selfByte = bytes[0];
 		boolean W = getWidth(vm, selfByte);
 		int bitnumber = W ? 16 : 8;

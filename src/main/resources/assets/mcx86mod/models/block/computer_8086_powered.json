@@ -1,0 +1,6 @@
+{
+  "parent": "mcx86mod:block/computer_8086_base",
+  "textures": {
+    "front": "mcx86mod:block/computer_8086_front_powered"
+  }
+}

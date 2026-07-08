@@ -2,9 +2,9 @@ package thennx.vm8086.devices;
 
 import java.util.LinkedList;
 
-import net.minecraft.nbt.CompoundTag;
+import thennx.vm8086.IStateStorage;
 
-public class BarebonesATAChannel implements IPortSpaceDevice {
+public class BarebonesATAChannel implements IPortSpaceDevice, IStateful {
 
 	private short basePort;
 	private short controlPort;
@@ -370,12 +370,17 @@ public class BarebonesATAChannel implements IPortSpaceDevice {
 	}
 
 	@Override
-	public void load(CompoundTag tag) {
+	public void load(IStateStorage stateStorage) {
 
 	}
 
 	@Override
-	public void save(CompoundTag tag) {
+	public void save(IStateStorage stateStorage) {
+
+	}
+
+	@Override
+	public void deleteSaved(IStateStorage stateStorage) {
 
 	}
 

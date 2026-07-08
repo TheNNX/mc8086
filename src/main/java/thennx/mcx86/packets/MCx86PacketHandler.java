@@ -1,8 +1,9 @@
-package thennx.mcx86;
+package thennx.mcx86.packets;
 
 import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.simple.SimpleChannel;
+import thennx.mcx86.MCx86Mod;
 
 public class MCx86PacketHandler {
 	private static final String PROTOCOL_VERSION = "1";
@@ -10,21 +11,15 @@ public class MCx86PacketHandler {
 			new ResourceLocation(MCx86Mod.MODID, "main"), () -> PROTOCOL_VERSION, PROTOCOL_VERSION::equals,
 			PROTOCOL_VERSION::equals);
 
-	private static boolean registered = false;
-
-	public static final boolean registerMessages() {
-		// if (registered == true) {
-		// return false;
-		// }
-
+	public static void registerMessages() {
 		int messageId = 0;
 
 		INSTANCE.registerMessage(messageId++, VgaUpdatePacket.class, VgaUpdatePacket::encode, VgaUpdatePacket::new,
 				VgaUpdatePacket::handle);
 		INSTANCE.registerMessage(messageId++, KeypressPacket.class, KeypressPacket::encode, KeypressPacket::new,
 				KeypressPacket::handle);
+		INSTANCE.registerMessage(messageId++, DeviceStateUpdateRequest.class, DeviceStateUpdateRequest::encode, DeviceStateUpdateRequest::new,
+				DeviceStateUpdateRequest::handle);
 
-		registered = true;
-		return true;
 	}
 }

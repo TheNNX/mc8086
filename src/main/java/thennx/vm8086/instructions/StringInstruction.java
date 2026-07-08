@@ -1,8 +1,6 @@
 package thennx.vm8086.instructions;
 
-import static thennx.vm8086.Registers8086.DF;
-
-import java.util.Optional;
+import static thennx.vm8086.Registers8086.MASK_DF;
 
 import thennx.vm8086.CpuException;
 import thennx.vm8086.VM8086;
@@ -10,14 +8,14 @@ import thennx.vm8086.VM8086;
 public abstract class StringInstruction extends Instruction {
 
 	@Override
-	protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) throws CpuException {
+    public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) throws CpuException {
 		byte selfByte = bytes[0];
 		boolean W = getWidth(vm, selfByte);
 
 		short sourceSegment, destinationSegment;
 		short sourceOffset, destinationOffset;
 
-		sourceSegment = segment.orElse(vm.registers.DS.shortValue());
+		sourceSegment = (segment != null) ? segment : vm.registers.DS.shortValue();
 		destinationSegment = vm.registers.ES.shortValue();
 		sourceOffset = vm.registers.SI.shortValue();
 		destinationOffset = vm.registers.DI.shortValue();
@@ -25,7 +23,7 @@ public abstract class StringInstruction extends Instruction {
 		int moveBytes = W ? 2 : 1;
 		stringOperation(vm, selfByte, sourceSegment, sourceOffset, destinationSegment, destinationOffset);
 
-		if (0 == (vm.registers.FLAGS.intValue() & DF)) {
+		if (0 == (vm.registers.FLAGS.intValue() & MASK_DF)) {
 			if (doesChangeDi())
 				vm.registers.DI.add(moveBytes);
 			if (doesChangeSi())

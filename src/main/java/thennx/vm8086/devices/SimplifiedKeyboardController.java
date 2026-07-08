@@ -3,14 +3,14 @@ package thennx.vm8086.devices;
 import java.util.ArrayList;
 import java.util.LinkedList;
 
-import net.minecraft.nbt.CompoundTag;
+import thennx.vm8086.IStateStorage;
 import thennx.vm8086.VM8086;
 
 /**
  * This is a temporary keyboard controller, later it will be replaced with a
  * 8255 PPI. This is loosely based on PS/2 8042 command interface.
  */
-public class SimplifiedKeyboardController implements IPortSpaceDevice, IKeyboardController, InterruptSource {
+public class SimplifiedKeyboardController implements IPortSpaceDevice, IKeyboardController, IInterruptSource, IStateful {
 
 	IPS2Keyboard keyboard = null;
 
@@ -56,31 +56,18 @@ public class SimplifiedKeyboardController implements IPortSpaceDevice, IKeyboard
 	}
 
 	@Override
-	public void load(CompoundTag tag) {
+	public void load(IStateStorage stateStorage) {
 
 	}
 
 	@Override
-	public void save(CompoundTag tag) {
-		tag.putBoolean("outputBufferFull", outputBufferFull);
-		tag.putBoolean("controllerInputBufferFull", controllerInputBufferFull);
-		tag.putBoolean("commandDataFlag", commandDataFlag);
-		tag.putBoolean("parityError", parityError);
-		tag.putBoolean("timeoutError", timeoutError);
-		tag.putBoolean("firmwareFlag", firmwareFlag);
-		tag.putByte("dataOut", dataOut);
-		tag.putBoolean("systemReset", systemReset);
-		tag.putBoolean("deviceIrqPending", deviceIrqPending);
-		tag.putByte("lastCommand", lastCommand);
-		tag.putBoolean("waitingForRamData", waitingForRamData);
-		tag.putBoolean("waitingForCOPData", waitingForCOPData);
-		tag.putByteArray("internalRam", internalRam);
-		tag.putBoolean("firstPs2PortEnabled", firstPs2PortEnabled);
-		byte[] deviceQueuedBytesArray = new byte[deviceQueuedBytes.size()];
-		int i = 0;
-		for (Byte b : deviceQueuedBytes)
-			deviceQueuedBytesArray[i++] = b;
-		tag.putByteArray("deviceQueuedBytes", deviceQueuedBytesArray);
+	public void save(IStateStorage stateStorage) {
+
+	}
+
+	@Override
+	public void deleteSaved(IStateStorage stateStorage) {
+
 	}
 
 	private boolean outputBufferFull = false;
@@ -170,7 +157,7 @@ public class SimplifiedKeyboardController implements IPortSpaceDevice, IKeyboard
 
 		/* do NOT set to one */
 		if ((data & 1) != 0) {
-			vm.isRunning = false;
+			vm.setRunning(false);
 		}
 		/* set IRQ pending status */
 		deviceIrqPending = ((data & 16) != 0);
@@ -227,9 +214,9 @@ public class SimplifiedKeyboardController implements IPortSpaceDevice, IKeyboard
 	}
 
 	private void updateDataOut() {
-		outputBufferFull = deviceQueuedBytes.size() != 0;
+		outputBufferFull = !deviceQueuedBytes.isEmpty();
 
-		if (deviceQueuedBytes.size() == 0) {
+		if (deviceQueuedBytes.isEmpty()) {
 			dataOut = (byte) 0xFF;
 		}
 		/* if there's a byte in the queue, update dataOut and status */
@@ -253,6 +240,7 @@ public class SimplifiedKeyboardController implements IPortSpaceDevice, IKeyboard
 		updateDataOut();
 
 		if (port == (short) 0x60) {
+			System.out.printf("%02X\n", result & 0xFF);
 			return result;
 		}
 

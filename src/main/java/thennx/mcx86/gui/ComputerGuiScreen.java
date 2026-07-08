@@ -1,6 +1,6 @@
 package thennx.mcx86.gui;
 
-import org.joml.Vector3f;
+import com.mojang.blaze3d.vertex.PoseStack;
 
 import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.math.Axis;
@@ -11,34 +11,25 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.block.state.BlockState;
-import thennx.mcx86.DebugComputerBlockEntity;
-import thennx.mcx86.DebugComputerRenderer;
-import thennx.mcx86.KeypressPacket;
-import thennx.mcx86.MCx86PacketHandler;
+import thennx.mcx86.packets.KeypressPacket;
+import thennx.mcx86.packets.MCx86PacketHandler;
+import thennx.mcx86.screen.ScreenBlockEntity;
+import thennx.mcx86.screen.ScreenRenderer;
 
 public class ComputerGuiScreen extends Screen {
-
-	public static final float MAGIC_SCALE_NUMBER = 62.500004F;
-	public static final float MAGIC_TEXT_SCALE = 0.9765628F;
-	private static final Vector3f TEXT_SCALE = new Vector3f(0.9765628F, 0.9765628F, 0.9765628F);
+	private final ScreenBlockEntity screenEntity;
 
 	protected void renderSignBackground(GuiGraphics p_281440_, BlockState p_282401_) {
-		DebugComputerRenderer.renderNoTranslate(p_281440_.pose(), p_281440_.bufferSource(), sign);
+		ScreenRenderer.renderNoTranslate(p_281440_.pose(), p_281440_.bufferSource(), screenEntity);
 	}
 
-	protected Vector3f getSignTextScale() {
-		return TEXT_SCALE;
-	}
-
-	private final DebugComputerBlockEntity sign;
-
-	public ComputerGuiScreen(DebugComputerBlockEntity p_277842_) {
+	public ComputerGuiScreen(ScreenBlockEntity p_277842_) {
 		this(p_277842_, Component.translatable("sign.edit"));
 	}
 
-	public ComputerGuiScreen(DebugComputerBlockEntity p_277792_, Component p_277393_) {
+	public ComputerGuiScreen(ScreenBlockEntity blockEntity, Component p_277393_) {
 		super(p_277393_);
-		this.sign = p_277792_;
+		this.screenEntity = blockEntity;
 	}
 
 	@Override
@@ -53,23 +44,27 @@ public class ComputerGuiScreen extends Screen {
 		if (!this.isValid()) {
 			this.onDone();
 		}
-
 	}
 
 	private boolean isValid() {
-		return this.minecraft != null && this.minecraft.player != null && !this.sign.isRemoved()
-				&& !this.sign.playerIsTooFarAwayToEdit(this.minecraft.player.getUUID());
+		if (minecraft == null || minecraft.player == null) {
+			return false;
+		}
+		if (screenEntity.getBlockPos().distToCenterSqr(minecraft.player.getX(), minecraft.player.getY(), minecraft.player.getZ()) > KeypressPacket.KEYPRESS_VALID_DISTSQUARE) {
+			return false;
+		}
+		return !this.screenEntity.isRemoved();
 	}
 
 	@Override
 	public boolean keyPressed(int key, int scancode, int modifiers) {
-		MCx86PacketHandler.INSTANCE.sendToServer(new KeypressPacket(sign, (char) key, scancode, true));
+		MCx86PacketHandler.INSTANCE.sendToServer(new KeypressPacket(screenEntity, (char) key, scancode, true));
 		return super.keyPressed(key, scancode, modifiers);
 	}
 
 	@Override
 	public boolean keyReleased(int key, int scancode, int modifiers) {
-		MCx86PacketHandler.INSTANCE.sendToServer(new KeypressPacket(sign, (char) key, scancode, false));
+		MCx86PacketHandler.INSTANCE.sendToServer(new KeypressPacket(screenEntity, (char) key, scancode, false));
 		return super.keyReleased(key, scancode, modifiers);
 	}
 
@@ -97,7 +92,11 @@ public class ComputerGuiScreen extends Screen {
 		return false;
 	}
 
-	protected void offsetSign(GuiGraphics p_282672_, BlockState p_283056_) {
+	private void renderSign(GuiGraphics guiGraphics) {
+		BlockState blockstate = this.screenEntity.getBlockState();
+		PoseStack pose = guiGraphics.pose();
+		pose.pushPose();
+
 		float effectiveWidth;
 		float effectiveHeight;
 		float desiredScale = 0.90f;
@@ -111,24 +110,13 @@ public class ComputerGuiScreen extends Screen {
 			effectiveWidth = effectiveHeight * aspectRatio;
 		}
 
-		p_282672_.pose().translate(0, 0, 10.0F);
-		p_282672_.pose().translate((this.width - effectiveWidth) / 2, (this.height - effectiveHeight) / 2, 10.0F);
-		p_282672_.pose().scale(effectiveWidth, effectiveHeight, 1.0f);
-		p_282672_.pose().translate(-1.0f, -1.0f, 0);
-		p_282672_.pose().rotateAround(Axis.ZP.rotation(3.141592f), 1.0f, 1.0f, 0);
-	}
+		pose.translate((this.width - effectiveWidth) / 2, (this.height - effectiveHeight) / 2, 10.0F);
+		pose.scale(effectiveWidth, effectiveHeight, 1.0f);
+		pose.translate(-1.0f, -1.0f, 0);
+		pose.rotateAround(Axis.ZP.rotation(3.141592f), 1.0f, 1.0f, 0);
+		this.renderSignBackground(guiGraphics, blockstate);
 
-	private void renderSign(GuiGraphics p_282006_) {
-		BlockState blockstate = this.sign.getBlockState();
-		p_282006_.pose().pushPose();
-
-		this.offsetSign(p_282006_, blockstate);
-		// p_282006_.pose().rotateAround(Axis.ZP.rotation(3.14f), this.width / 2,
-		// this.height / 2, 0);
-
-		this.renderSignBackground(p_282006_, blockstate);
-
-		p_282006_.pose().popPose();
+		pose.popPose();
 	}
 
 	private void onDone() {

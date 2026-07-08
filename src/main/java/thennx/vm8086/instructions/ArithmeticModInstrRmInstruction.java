@@ -18,7 +18,7 @@ public abstract class ArithmeticModInstrRmInstruction extends ArithmeticModRegRm
 	}
 
 	@Override
-	protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) throws CpuException {
+    public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) throws CpuException {
 		byte selfByte = bytes[0];
 		ModRegRmDecoded decoded = (ModRegRmDecoded) data[0];
 

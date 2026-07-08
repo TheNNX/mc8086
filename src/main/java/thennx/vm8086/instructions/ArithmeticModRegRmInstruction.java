@@ -20,7 +20,7 @@ public abstract class ArithmeticModRegRmInstruction extends ModRegRmInstruction 
 	}
 
 	@Override
-	protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) throws CpuException {
+    public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) throws CpuException {
 		ModRegRmDecoded decoded = (ModRegRmDecoded) data[0];
 		boolean w = getWidth(vm, bytes[0]);
 		int bitnumber = w ? 16 : 8;

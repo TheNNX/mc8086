@@ -17,15 +17,13 @@ import javax.swing.JLabel;
 import thennx.vm8086.devices.DummyIdeDrive;
 import thennx.vm8086.devices.PS2Keyboard;
 
-import java.util.concurrent.*;
-
 public class TestVM extends Frame {
 
 	private BufferedImage screen = new BufferedImage(80 * 9, 25 * 16, BufferedImage.TYPE_INT_ARGB);
 	JLabel label;
 	
 	class ScreenUpdate extends Thread {
-		private VM8086 vm;
+		private final VM8086 vm;
 		
 		public ScreenUpdate(VM8086 vm) {
 			this.vm = vm;
@@ -36,6 +34,7 @@ public class TestVM extends Frame {
 			while (this.isInterrupted() == false) {
 				screenUpdate(vm);
 			}
+			screenUpdate(vm);
 		}
 	}
 
@@ -92,128 +91,71 @@ public class TestVM extends Frame {
 		this.addKeyListener(new KeyListener() {
 
 			private static int getPs2Scancode(KeyEvent event) {
-				switch (event.getKeyCode()) {
-				case KeyEvent.VK_ESCAPE:
-					return 0x01;
-				case KeyEvent.VK_1:
-					return 0x02;
-				case KeyEvent.VK_2:
-					return 0x03;
-				case KeyEvent.VK_3:
-					return 0x04;
-				case KeyEvent.VK_4:
-					return 0x05;
-				case KeyEvent.VK_5:
-					return 0x06;
-				case KeyEvent.VK_6:
-					return 0x07;
-				case KeyEvent.VK_7:
-					return 0x08;
-				case KeyEvent.VK_8:
-					return 0x09;
-				case KeyEvent.VK_9:
-					return 0x0A;
-				case KeyEvent.VK_0:
-					return 0x0B;
-				case KeyEvent.VK_MINUS:
-					return 0x0C;
-				case KeyEvent.VK_PLUS:
-					return 0x0D;
-				case KeyEvent.VK_BACK_SPACE:
-					return 0x0E;
-				case KeyEvent.VK_TAB:
-					return 0x0F;
-				case KeyEvent.VK_Q:
-					return 0x10;
-				case KeyEvent.VK_W:
-					return 0x11;
-				case KeyEvent.VK_E:
-					return 0x12;
-				case KeyEvent.VK_R:
-					return 0x13;
-				case KeyEvent.VK_T:
-					return 0x14;
-				case KeyEvent.VK_Y:
-					return 0x15;
-				case KeyEvent.VK_U:
-					return 0x16;
-				case KeyEvent.VK_I:
-					return 0x17;
-				case KeyEvent.VK_O:
-					return 0x18;
-				case KeyEvent.VK_P:
-					return 0x19;
-				case KeyEvent.VK_OPEN_BRACKET:
-					return 0x1A;
-				case KeyEvent.VK_CLOSE_BRACKET:
-					return 0x1B;
-				case KeyEvent.VK_ENTER:
-					return 0x1C;
-				case KeyEvent.VK_CONTROL:
-					return 0x1D;
-				case KeyEvent.VK_A:
-					return 0x1E;
-				case KeyEvent.VK_S:
-					return 0x1F;
-				case KeyEvent.VK_D:
-					return 0x20;
-				case KeyEvent.VK_F:
-					return 0x21;
-				case KeyEvent.VK_G:
-					return 0x22;
-				case KeyEvent.VK_H:
-					return 0x23;
-				case KeyEvent.VK_J:
-					return 0x24;
-				case KeyEvent.VK_K:
-					return 0x25;
-				case KeyEvent.VK_L:
-					return 0x26;
-				case KeyEvent.VK_SEMICOLON:
-					return 0x27;
-				case KeyEvent.VK_QUOTE:
-					return 0x28;
-				case KeyEvent.VK_BACK_QUOTE:
-					return 0x29;
-				case KeyEvent.VK_SHIFT:
-					if (event.getKeyLocation() == KeyEvent.KEY_LOCATION_LEFT)
-						return 0x2A;
-					return 0x36;
-				case KeyEvent.VK_Z:
-					return 0x2C;
-				case KeyEvent.VK_X:
-					return 0x2D;
-				case KeyEvent.VK_C:
-					return 0x2E;
-				case KeyEvent.VK_V:
-					return 0x2F;
-				case KeyEvent.VK_B:
-					return 0x30;
-				case KeyEvent.VK_N:
-					return 0x31;
-				case KeyEvent.VK_M:
-					return 0x32;
-				case KeyEvent.VK_COMMA:
-					return 0x33;
-				case KeyEvent.VK_PERIOD:
-					return 0x34;
-				case KeyEvent.VK_SLASH:
-					return 0x35;
-				case KeyEvent.VK_SPACE:
-					return 0x39;
-				case KeyEvent.VK_CAPS_LOCK:
-					return 0x3A;
-				case KeyEvent.VK_DOWN:
-					return 0x50;
-				case KeyEvent.VK_UP:
-					return 0x48;
-				case KeyEvent.VK_RIGHT:
-					return 0x4D;
-				case KeyEvent.VK_LEFT:
-					return 0x4B;
-				default:
-					return 0x1E;
-				}
+                return switch (event.getKeyCode()) {
+                    case KeyEvent.VK_ESCAPE -> 0x01;
+                    case KeyEvent.VK_1 -> 0x02;
+                    case KeyEvent.VK_2 -> 0x03;
+                    case KeyEvent.VK_3 -> 0x04;
+                    case KeyEvent.VK_4 -> 0x05;
+                    case KeyEvent.VK_5 -> 0x06;
+                    case KeyEvent.VK_6 -> 0x07;
+                    case KeyEvent.VK_7 -> 0x08;
+                    case KeyEvent.VK_8 -> 0x09;
+                    case KeyEvent.VK_9 -> 0x0A;
+                    case KeyEvent.VK_0 -> 0x0B;
+                    case KeyEvent.VK_MINUS -> 0x0C;
+                    case KeyEvent.VK_PLUS -> 0x0D;
+                    case KeyEvent.VK_BACK_SPACE -> 0x0E;
+                    case KeyEvent.VK_TAB -> 0x0F;
+                    case KeyEvent.VK_Q -> 0x10;
+                    case KeyEvent.VK_W -> 0x11;
+                    case KeyEvent.VK_E -> 0x12;
+                    case KeyEvent.VK_R -> 0x13;
+                    case KeyEvent.VK_T -> 0x14;
+                    case KeyEvent.VK_Y -> 0x15;
+                    case KeyEvent.VK_U -> 0x16;
+                    case KeyEvent.VK_I -> 0x17;
+                    case KeyEvent.VK_O -> 0x18;
+                    case KeyEvent.VK_P -> 0x19;
+                    case KeyEvent.VK_OPEN_BRACKET -> 0x1A;
+                    case KeyEvent.VK_CLOSE_BRACKET -> 0x1B;
+                    case KeyEvent.VK_ENTER -> 0x1C;
+                    case KeyEvent.VK_CONTROL -> 0x1D;
+                    case KeyEvent.VK_A -> 0x1E;
+                    case KeyEvent.VK_S -> 0x1F;
+                    case KeyEvent.VK_D -> 0x20;
+                    case KeyEvent.VK_F -> 0x21;
+                    case KeyEvent.VK_G -> 0x22;
+                    case KeyEvent.VK_H -> 0x23;
+                    case KeyEvent.VK_J -> 0x24;
+                    case KeyEvent.VK_K -> 0x25;
+                    case KeyEvent.VK_L -> 0x26;
+                    case KeyEvent.VK_SEMICOLON -> 0x27;
+                    case KeyEvent.VK_QUOTE -> 0x28;
+                    case KeyEvent.VK_BACK_QUOTE -> 0x29;
+                    case KeyEvent.VK_SHIFT -> {
+                        if (event.getKeyLocation() == KeyEvent.KEY_LOCATION_LEFT)
+                            yield 0x2A;
+                        yield 0x36;
+                    }
+                    case KeyEvent.VK_Z -> 0x2C;
+                    case KeyEvent.VK_X -> 0x2D;
+                    case KeyEvent.VK_C -> 0x2E;
+                    case KeyEvent.VK_V -> 0x2F;
+                    case KeyEvent.VK_B -> 0x30;
+                    case KeyEvent.VK_N -> 0x31;
+                    case KeyEvent.VK_M -> 0x32;
+                    case KeyEvent.VK_COMMA -> 0x33;
+                    case KeyEvent.VK_PERIOD -> 0x34;
+                    case KeyEvent.VK_SLASH -> 0x35;
+                    case KeyEvent.VK_SPACE -> 0x39;
+                    case KeyEvent.VK_CAPS_LOCK -> 0x3A;
+                    case KeyEvent.VK_DOWN -> 0x50;
+                    case KeyEvent.VK_UP -> 0x48;
+                    case KeyEvent.VK_RIGHT -> 0x4D;
+                    case KeyEvent.VK_LEFT -> 0x4B;
+                    default -> 0x1E;
+                };
 			}
 
 			@Override
@@ -223,21 +165,11 @@ public class TestVM extends Frame {
 
 			@Override
 			public void keyReleased(KeyEvent e) {
-				/* if (0 != (vm8086.registers.FLAGS.intValue() & Registers8086.IF)) {
-					vm8086.writeMemoryBytePhysical(0x4A6, (byte)e.getKeyChar());
-					vm8086.startInterrupt((byte) 7);
-				}*/
-				
-				//characterQueue.add(e);
 				keyboard.queueKeystroke(getPs2Scancode(e), e.getKeyChar(), false);
-				//keyboard.keyPressed(getPs2Scancode(e) | 0x80);
 			}
 
 			@Override
 			public void keyPressed(KeyEvent e) {
-				//keyboard.keyPressed(getPs2Scancode(e));
-				//characterQueue.add(e);
-				//keyboard.queueKeystroke(getPs2Scancode(e), e.getKeyChar(), false);
 				keyboard.queueKeystroke(getPs2Scancode(e), e.getKeyChar(), true);
 			}
 		});
@@ -247,6 +179,7 @@ public class TestVM extends Frame {
 				screen.setRGB(i, j, 0xFF00FF00);
 			}
 		}
+
 		screen.flush();
 		label = new JLabel(new ImageIcon(screen));
 		this.add(label);
@@ -255,28 +188,21 @@ public class TestVM extends Frame {
 		label.setLocation(ins.left + 5, ins.top + 5);
 		label.setSize(80 * 9, 25 * 16);
 
-		byte[] bios = new byte[65536];
+		byte[] bios;
 
 		File biosFile = new File("C:\\Users\\Marcin\\Desktop\\oc86boot\\bios.bin");
 		bios = Files.readAllBytes(biosFile.toPath());
 
 		vm8086 = new VM8086(1024 * 1024, bios);
 		vm8086.attachPS2Keyboard(keyboard);
-		vm8086.attachIdeDevice(0, false, new DummyIdeDrive());
+		vm8086.attachIdeDevice(0, false, new DummyIdeDrive(vm8086, true));
+		// vm8086.addDebugPorts();
 
 		ScreenUpdate screenUpdate = new ScreenUpdate(vm8086);
 		screenUpdate.setPriority(Thread.MIN_PRIORITY);
 		screenUpdate.start();
-		
-		int n = 0;
-		
-		while (vm8086.isRunning) {
-			if ((vm8086.registers.FLAGS.intValue() & Registers8086.IF) != 0) {
-				if (n % 100000 == 0) {
-					//vm8086.startInterrupt((byte)0xa);
-				}
-			}
-			n++;
+
+		while (vm8086.isRunning()) {
 			vm8086.step(1);
 		}
 
@@ -295,8 +221,8 @@ public class TestVM extends Frame {
 	}
 
 	private void screenUpdate(VM8086 vm) {
-		int[] egaColors = { 0xFF000000, 0xFFAA0000, 0xFF00AA00, 0xFFAAAA00, 0xFF0000AA, 0xFFAA00AA, 0xFF0055AA,
-				0xFFAAAAAA, 0xFF555555, 0xFFFF5555, 0xFF55FF55, 0xFFFFFF55, 0xFF5555FF, 0xFFFF55FF, 0xFF55FFFF,
+		int[] egaColors = { 0xFF000000, 0xFF0000AA, 0xFF00AA00, 0xFF00AAAA, 0xFFAA0000, 0xFFAA00AA, 0xFFAA5500,
+				0xFFAAAAAA, 0xFF555555, 0xFF5555FF, 0xFF55FF55, 0xFF55FFFF, 0xFFFF5555, 0xFFFF55FF, 0xFFFFFF55,
 				0xFFFFFFFF };
 
 		int videomemStart = 0xB8000;
@@ -345,10 +271,7 @@ public class TestVM extends Frame {
 			}
 		}
 
-		// this.repaint();
 		if (maxX != -1)
 			label.repaint(minX, minY, maxX - minX + 1, maxY - minY + 1);
-		// label.repaint();
-
 	}
 }

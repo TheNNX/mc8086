@@ -6,12 +6,11 @@ import java.util.List;
 
 public class Registers8086 implements Iterable<thennx.vm8086.Registers8086.Register16> {
 
-	private List<Register16> registers = new ArrayList<>();
+	private final List<Register16> registers = new ArrayList<>();
 
 	public class Register16 extends Number {
-
 		private short value;
-		private String name;
+		private final String name;
 
 		public Register16(String name, short value) {
 			this.value = value;
@@ -42,7 +41,7 @@ public class Registers8086 implements Iterable<thennx.vm8086.Registers8086.Regis
 
 		@Override
 		public String toString() {
-			return "" + String.format("%04X", value & 0xFFFF);
+			return String.format("%04X", value & 0xFFFF);
 		}
 
 		public <T extends Number> short add(T s) {
@@ -52,7 +51,7 @@ public class Registers8086 implements Iterable<thennx.vm8086.Registers8086.Regis
 
 		@Override
 		public int intValue() {
-			return (value) & 0xFFFF;
+			return shortValue() & 0xFFFF;
 		}
 
 		@Override
@@ -95,6 +94,19 @@ public class Registers8086 implements Iterable<thennx.vm8086.Registers8086.Regis
 			this.value = value;
 		}
 
+		private Register16 getReg8Override(VM8086 vm) {
+			if ((Object)this == vm.registers.SP) {
+				return vm.registers.AX;
+			} else if ((Object)this == vm.registers.BP) {
+				return vm.registers.CX;
+			} else if ((Object)this == vm.registers.SI) {
+				return vm.registers.DX;
+			} else if ((Object)this == vm.registers.DI) {
+				return vm.registers.BX;
+			}
+			return null;
+		}
+
 		public short readDecoded(VM8086 vm, boolean W) {
 			/* reg8 */
 			if (!W) {
@@ -104,15 +116,7 @@ public class Registers8086 implements Iterable<thennx.vm8086.Registers8086.Regis
 				 * this is a hacky way of making reg decoding width flag independent If W = 0,
 				 * what would be SP with W = 1 becomes high byte of AX etc.
 				 */
-				if (this == vm.registers.SP) {
-					override = vm.registers.AX;
-				} else if (this == vm.registers.BP) {
-					override = vm.registers.CX;
-				} else if (this == vm.registers.SI) {
-					override = vm.registers.DX;
-				} else if (this == vm.registers.DI) {
-					override = vm.registers.BX;
-				}
+				override = getReg8Override(vm);
 
 				/*
 				 * if operand is a register with different meaning when dealing with 16 bit
@@ -134,17 +138,7 @@ public class Registers8086 implements Iterable<thennx.vm8086.Registers8086.Regis
 		public void writeDecoded(VM8086 vm, boolean w, short data) {
 			/* reg8 */
 			if (!w) {
-				Register16 override = null;
-
-				if (this == vm.registers.SP) {
-					override = vm.registers.AX;
-				} else if (this == vm.registers.BP) {
-					override = vm.registers.CX;
-				} else if (this == vm.registers.SI) {
-					override = vm.registers.DX;
-				} else if (this == vm.registers.DI) {
-					override = vm.registers.BX;
-				}
+				Register16 override = getReg8Override(vm);
 
 				if (override != null) {
 					override.writeHigh((byte) (data & 0xFF));
@@ -176,17 +170,42 @@ public class Registers8086 implements Iterable<thennx.vm8086.Registers8086.Regis
 	public Register16 BP = new Register16("BP");
 	public Register16 DI = new Register16("DI");
 	public Register16 SI = new Register16("SI");
-	public Register16 FLAGS = new Register16("FLAGS");
+	public RegisterFlags FLAGS = new RegisterFlags();
 
-	public static final int CF = 0x0001;
-	public static final int PF = 0x0004;
-	public static final int AF = 0x0010;
-	public static final int ZF = 0x0040;
-	public static final int SF = 0x0080;
-	public static final int TF = 0x0100;
-	public static final int IF = 0x0200;
-	public static final int DF = 0x0400;
-	public static final int OF = 0x0800;
+	public class RegisterFlags extends Register16 {
+		private static final String NAME = "FLAGS";
+
+		public RegisterFlags() {
+			super(NAME);
+		}
+
+		public RegisterFlags(short value) {
+			super(NAME, value);
+		}
+
+		public RegisterFlags(int value) {
+			super(NAME, value);
+		}
+
+		public RegisterFlags(Register16 reg) {
+			super(NAME, reg);
+		}
+
+		@Override
+		public short shortValue() {
+			return (short) (super.shortValue() | 0xF000);
+		}
+	}
+
+	public static final int MASK_CF = 0x0001;
+	public static final int MASK_PF = 0x0004;
+	public static final int MASK_AF = 0x0010;
+	public static final int MASK_ZF = 0x0040;
+	public static final int MASK_SF = 0x0080;
+	public static final int MASK_TF = 0x0100;
+	public static final int MASK_IF = 0x0200;
+	public static final int MASK_DF = 0x0400;
+	public static final int MASK_OF = 0x0800;
 
 	@Override
 	public Iterator<Register16> iterator() {

@@ -1,10 +1,20 @@
 package thennx.vm8086.devices;
 
+import thennx.vm8086.VM8086;
+
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 
 public class DummyIdeDrive implements IBlockDevice {
+	private boolean logAccess = false;
+	private VM8086 vm;
+	private int zeroAccessed = 0;
+
+	public DummyIdeDrive(VM8086 vm, boolean logAccess) {
+		this.logAccess = logAccess;
+		this.vm = vm;
+	}
 
 	@Override
 	public boolean write(long lba, byte[] sectorData) {
@@ -14,7 +24,6 @@ public class DummyIdeDrive implements IBlockDevice {
 	@Override
 	public byte[] read(long lba) {
 		byte[] data = new byte[512];
-		System.out.println("Reading LBA " + lba);
 
 		String[] tests = {
 				"C:\\Users\\Marcin\\Desktop\\oc86boot\\dos\\dos_2.vhd",
@@ -26,7 +35,11 @@ public class DummyIdeDrive implements IBlockDevice {
 				"C:\\Users\\Marcin\\Desktop\\oc86boot\\dos\\dos_1.vhd",
 		};
 
-		try (FileInputStream fs = new FileInputStream(tests[4])){
+		if (logAccess) {
+			System.out.printf("Sector %X\n", lba);
+		}
+
+		try (FileInputStream fs = new FileInputStream(tests[3])){
 			fs.skipNBytes(lba * 512);
 			fs.read(data);
 		} catch (FileNotFoundException e) {
@@ -35,7 +48,6 @@ public class DummyIdeDrive implements IBlockDevice {
 			e1.printStackTrace();
 		}
 
-		System.out.printf("Magic: %X%X\n", data[510], data[511]);
 		return data;
 	}
 
@@ -55,7 +67,7 @@ public class DummyIdeDrive implements IBlockDevice {
 
 	@Override
 	public short getCylinders() {
-		return 100;
+		return 80;
 	}
 
 	@Override

@@ -1,7 +1,5 @@
 package thennx.vm8086.instructions;
 
-import java.util.Optional;
-
 import thennx.vm8086.CpuException;
 import thennx.vm8086.VM8086;
 import thennx.vm8086.Registers8086.Register16;
@@ -11,7 +9,9 @@ public abstract class ModRegRmInstruction extends Instruction {
 
 	public class ModRegRmDecoded {
 
-		public ModRegRmDecoded(byte modRegRm, byte selfByte, VM8086 vm, boolean D, boolean W, Optional<Short> segmentOverride,
+		private int displacement = 0;
+
+		public ModRegRmDecoded(byte modRegRm, byte selfByte, VM8086 vm, boolean D, boolean W, Short segmentOverride,
 				boolean regAsPartOfInstruction) {
 			byte mod = (byte) ((modRegRm & 0xC0) / 64);
 			byte reg = (byte) ((modRegRm & 0x38) / 8);
@@ -20,8 +20,6 @@ public abstract class ModRegRmInstruction extends Instruction {
 			/* copy the direction and width flags */
 			this.D = D;
 			this.W = W;
-
-			int displacement = 0;
 
 			switch (mod) {
 			case 0:
@@ -71,6 +69,10 @@ public abstract class ModRegRmInstruction extends Instruction {
 				this.destination = operand2;
 				this.source = operand1;
 			}
+		}
+
+		public int getDisplacement() {
+			return this.displacement;
 		}
 
 		public boolean W;
@@ -155,11 +157,11 @@ public abstract class ModRegRmInstruction extends Instruction {
 	}
 
 	@Override
-	public void decodeAndExecute(VM8086 vm, Optional<Short> segment) throws CpuException {
+	public void decodeAndExecute(VM8086 vm, Short segment) throws CpuException {
 		decode(vm, segment, false);
 	}
 
-	public void decode(VM8086 vm, Optional<Short> segment, boolean ignoreRegInModRegRmTranslation) throws CpuException {
+	public void decode(VM8086 vm, Short segment, boolean ignoreRegInModRegRmTranslation) throws CpuException {
 		byte selfByte, modRegRm;
 
 		/* read the self byte and the ModRegR/M */
@@ -178,8 +180,8 @@ public abstract class ModRegRmInstruction extends Instruction {
 		ModRegRmDecoded decoded = new ModRegRmDecoded(modRegRm, selfByte, vm, D, W, segment,
 				ignoreRegInModRegRmTranslation);
 		Object[] args = createExecutionArgs(vm, selfByte, decoded);
-		
+
 		/* execute the instruction */
-		execute(vm, new byte[] { selfByte, modRegRm }, args, segment);
+		execute(vm, new byte[]{selfByte, modRegRm}, args, segment);
 	}
 }

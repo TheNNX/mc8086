@@ -10,7 +10,7 @@ public class LeaModRegRmDecoder extends ModRegRmDecoder {
 
 	/* basically the same as the normal version, but do not add the segment */
 	@Override
-	public Object decodeRm(VM8086 vm, byte rm, byte mod, int displacement, Optional<Short> segment) {
+	public Object decodeRm(VM8086 vm, byte rm, byte mod, int displacement, Short segment) {
 		int result = 0;
 
 		switch (rm) {

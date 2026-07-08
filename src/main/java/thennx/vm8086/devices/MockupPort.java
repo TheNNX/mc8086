@@ -1,6 +1,6 @@
 package thennx.vm8086.devices;
 
-import net.minecraft.nbt.CompoundTag;
+import java.nio.file.Path;
 
 public class MockupPort implements IPortSpaceDevice {
 
@@ -25,15 +25,4 @@ public class MockupPort implements IPortSpaceDevice {
 	public byte readByte(short port) {
 		return data;
 	}
-
-	@Override
-	public void load(CompoundTag tag) {
-
-	}
-
-	@Override
-	public void save(CompoundTag tag) {
-
-	}
-
 }

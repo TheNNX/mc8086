@@ -1,6 +1,6 @@
 package thennx.vm8086.devices;
 
-import net.minecraft.nbt.CompoundTag;
+import java.nio.file.Path;
 
 public interface IPortSpaceDevice {
 	boolean matchPort(short port);
@@ -8,8 +8,4 @@ public interface IPortSpaceDevice {
 	void writeByte(short port, byte data);
 
 	byte readByte(short port);
-
-	void load(CompoundTag tag);
-
-	void save(CompoundTag tag);
 }

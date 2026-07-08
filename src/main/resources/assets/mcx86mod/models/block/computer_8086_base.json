@@ -1,0 +1,12 @@
+{
+  "parent": "minecraft:block/cube",
+  "textures": {
+    "north": "#front",
+    "south": "mcx86mod:block/computer_8086_back",
+    "up": "mcx86mod:block/computer_8086_top",
+    "down": "mcx86mod:block/computer_8086_bottom",
+    "west": "mcx86mod:block/computer_8086_left",
+    "east": "mcx86mod:block/computer_8086_right",
+    "particle": "mcx86mod:block/computer_8086_front"
+  }
+}

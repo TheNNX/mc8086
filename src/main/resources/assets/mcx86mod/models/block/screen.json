@@ -1,9 +1,26 @@
 {
-  "parent": "minecraft:block/orientable",
+  "parent": "block/cube",
   "render_type": "minecraft:cutout",
   "textures": {
-    "front": "mcx86mod:block/screen_front",
+    "down": "mcx86mod:block/screen_top",
+    "up": "mcx86mod:block/screen_top",
+    "north": "mcx86mod:block/screen_front",
     "side": "mcx86mod:block/screen_side",
-    "top": "mcx86mod:block/screen_top"
-  }
+    "south": "mcx86mod:block/screen_back",
+    "particle": "mcx86mod:block/screen_front"
+  },
+  "elements": [
+    {
+      "from": [0, 0, 0],
+      "to": [16, 16, 16],
+      "faces": {
+        "down":  { "uv": [0, 0, 16, 16], "texture": "#down", "cullface": "down" },
+        "up":    { "uv": [0, 0, 16, 16], "texture": "#up", "cullface": "up" },
+        "north": { "uv": [0, 0, 16, 16], "texture": "#north", "cullface": "north" },
+        "south": { "uv": [0, 0, 16, 16], "texture": "#south", "cullface": "south" },
+        "west":  { "uv": [0, 0, 16, 16], "texture": "#side", "cullface": "west" },
+        "east":  { "uv": [16, 0, 0, 16], "texture": "#side", "cullface": "east" }
+      }
+    }
+  ]
 }

@@ -28,13 +28,13 @@ public class ModRegRmDecoder {
 		case 7:
 			return vm.registers.DI;
 		default:
-			System.out.println("Invalid reg field");
+			System.err.println("Invalid reg field");
 		}
 
 		return null;
 	}
 
-	public Object decodeRm(VM8086 vm, byte rm, byte mod, int displacement, Optional<Short> segment) {
+	public Object decodeRm(VM8086 vm, byte rm, byte mod, int displacement, Short segment) {
 		int result = 0;
 
 		short defSeg = vm.registers.DS.shortValue();
@@ -71,13 +71,13 @@ public class ModRegRmDecoder {
 			result = vm.registers.BX.intValue();
 			break;
 		default:
-			System.out.println("Invalid r/m field");
+			System.err.println("Invalid r/m field");
 			return 0;
 		}
 
 		result += displacement;
 		result &= 0xFFFF;
-		result += ((segment.orElse(defSeg)) & 0xFFFF) * 16;
+		result += (((segment != null) ? segment : defSeg) & 0xFFFF) * 16;
 		
 		return result & 0xFFFFF;
 	}

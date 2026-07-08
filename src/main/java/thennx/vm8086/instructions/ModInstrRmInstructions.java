@@ -15,11 +15,11 @@ public class ModInstrRmInstructions extends ModRegRmInstruction {
 	}
 
 	@Override
-	protected final void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) {
+    public final void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) {
 	}
 
 	@Override
-	public void decodeAndExecute(VM8086 vm, Optional<Short> segment) throws CpuException {
+	public void decodeAndExecute(VM8086 vm, Short segment) throws CpuException {
 		/* read the reg field */
 		byte modRegRm = vm.readMemoryByte16(vm.registers.CS.shortValue(), (short) (vm.registers.IP.intValue() + 1));
 		byte reg = (byte) ((modRegRm & 0x38) / 8);

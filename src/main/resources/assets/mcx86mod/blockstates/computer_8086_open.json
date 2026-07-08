@@ -1,0 +1,24 @@
+{
+  "variants": {
+    "case_off=true": {
+      "model": "mcx86mod:block/computer_8086_open"
+    },
+    "power_state=0": {
+      "model": "mcx86mod:block/computer_8086"
+    },
+    "power_state=1": {
+      "model": "mcx86mod:block/computer_8086_powered"
+    },
+    "facing=east": {
+      "y": 90
+    },
+    "facing=north": {
+    },
+    "facing=south": {
+      "y": 180
+    },
+    "facing=west": {
+      "y": 270
+    }
+  }
+}

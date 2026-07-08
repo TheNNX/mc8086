@@ -1,11 +1,11 @@
 package thennx.vm8086.devices;
 
-public interface InterruptSource {
-	public InterruptRequest consume();
-	public InterruptRequest peek();
+public interface IInterruptSource {
+	InterruptRequest consume();
+	InterruptRequest peek();
 
-	public class InterruptRequest {
-		public final InterruptSource from;
+	class InterruptRequest {
+		public final IInterruptSource from;
 
 		private int vector;
 		private boolean vectorAssigned;
@@ -23,7 +23,7 @@ public interface InterruptSource {
 			return this.vector;
 		}
 
-		public InterruptRequest(InterruptSource from) {
+		public InterruptRequest(IInterruptSource from) {
 			this.from = from;
 		}
 	}

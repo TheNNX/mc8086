@@ -1,8 +1,6 @@
 package thennx.vm8086.instructions;
 
-import static thennx.vm8086.Registers8086.ZF;
-
-import java.util.Optional;
+import static thennx.vm8086.Registers8086.MASK_ZF;
 
 import thennx.vm8086.CpuException;
 import thennx.vm8086.UndefinedOpcodeException;
@@ -14,7 +12,7 @@ public class RepPrefix extends Instruction {
 	private final int[] repxePrefixableBytes = { 0xA6, 0xA7, 0xAE, 0xAF };
 
 	@Override
-	protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) throws CpuException {
+    public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) throws CpuException {
 		byte selfByte = bytes[0];
 		byte nextInstructionByte = vm.getIpByte();
 
@@ -65,7 +63,7 @@ public class RepPrefix extends Instruction {
 			vm.registers.CX.add(-1);
 			/* if the equality match fails for REP(N)E, break */
 			if (repxe) {
-				boolean actualEquality = 0 == (vm.registers.FLAGS.intValue() & ZF);
+				boolean actualEquality = 0 == (vm.registers.FLAGS.intValue() & MASK_ZF);
 
 				if (desiredEquality == actualEquality) {
 					break;

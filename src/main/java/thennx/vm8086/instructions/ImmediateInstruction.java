@@ -8,7 +8,7 @@ import thennx.vm8086.VM8086;
 public abstract class ImmediateInstruction extends Instruction {
 
 	@Override
-	public void decodeAndExecute(VM8086 vm, Optional<Short> segment) throws CpuException {
+	public void decodeAndExecute(VM8086 vm, Short segment) throws CpuException {
 		byte selfByte = vm.getIpByte();
 		vm.registers.IP.add(1);
 		byte[] bytes;

@@ -1,0 +1,8 @@
+{
+  "tooltip.mcx86mod.has_8086": " - Built-in 8086 CPU",
+  "block.mcx86mod.computer_8086": "Basic x86 Case",
+  "block.mcx86mod.screen": "Basic Screen",
+  "item.mcx86mod.motherboard_8086": "Basic 8086 Motherboard",
+  "gui.mcx86mod.label.emulation_workers": "Number of emulation worker threads",
+  "gui.mcx86mod.label.emulation_quantum": "Emulation time quantum (in milliseconds)"
+}

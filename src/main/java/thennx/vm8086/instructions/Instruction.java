@@ -5,10 +5,12 @@ import java.util.Optional;
 import thennx.vm8086.CpuException;
 import thennx.vm8086.VM8086;
 
-public abstract class Instruction {
-	protected abstract void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) throws CpuException;
+import javax.swing.text.Segment;
 
-	public void decodeAndExecute(VM8086 vm, Optional<Short> segment) throws CpuException {
+public abstract class Instruction {
+	public abstract void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) throws CpuException;
+
+	public void decodeAndExecute(VM8086 vm, Short segment) throws CpuException {
 		byte currentByte = vm.getIpByte();
 		vm.registers.IP.add(1);
 		execute(vm, new byte[] { currentByte }, new Object[] {}, segment);

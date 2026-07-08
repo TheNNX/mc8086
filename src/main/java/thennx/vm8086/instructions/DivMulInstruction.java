@@ -1,9 +1,7 @@
 package thennx.vm8086.instructions;
 
-import static thennx.vm8086.Registers8086.CF;
-import static thennx.vm8086.Registers8086.OF;
-
-import java.util.Optional;
+import static thennx.vm8086.Registers8086.MASK_CF;
+import static thennx.vm8086.Registers8086.MASK_OF;
 
 import thennx.vm8086.DivideErrorException;
 import thennx.vm8086.VM8086;
@@ -11,7 +9,7 @@ import thennx.vm8086.VM8086;
 public abstract class DivMulInstruction extends ArithmeticModInstrRmInstruction {
 
 	@Override
-	protected void execute(VM8086 vm, byte[] bytes, Object[] data, Optional<Short> segment) throws DivideErrorException {
+    public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) throws DivideErrorException {
 		byte selfByte = bytes[0];
 		ModRegRmDecoded decoded = (ModRegRmDecoded) data[0];
 
@@ -47,9 +45,9 @@ public abstract class DivMulInstruction extends ArithmeticModInstrRmInstruction 
 		}
 
 		if (setFlags)
-			vm.registers.FLAGS.write((short) (vm.registers.FLAGS.intValue() | (CF | OF)));
+			vm.registers.FLAGS.write((short) (vm.registers.FLAGS.intValue() | (MASK_CF | MASK_OF)));
 		else
-			vm.registers.FLAGS.write((short) (vm.registers.FLAGS.intValue() & (~(CF | OF))));
+			vm.registers.FLAGS.write((short) (vm.registers.FLAGS.intValue() & (~(MASK_CF | MASK_OF))));
 	}
 
 	protected void div(VM8086 vm, int operand1l, int operand1h, int operand2, int bitnumber)

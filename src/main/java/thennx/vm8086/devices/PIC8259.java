@@ -1,6 +1,6 @@
 package thennx.vm8086.devices;
 
-import net.minecraft.nbt.CompoundTag;
+import thennx.vm8086.IStateStorage;
 import thennx.vm8086.VM8086;
 
 /**
@@ -8,7 +8,7 @@ import thennx.vm8086.VM8086;
  * Only 8086 mode is supported.
  */
 
-public class PIC8259 implements IPortSpaceDevice, InterruptSource {
+public class PIC8259 implements IPortSpaceDevice, IInterruptSource, IStateful {
 
 	private enum Mode {
 		Mode8086
@@ -25,7 +25,7 @@ public class PIC8259 implements IPortSpaceDevice, InterruptSource {
 
 	private Mode mode = Mode.Mode8086;
 
-	private InterruptSource[] sources = new InterruptSource[8];
+	private IInterruptSource[] sources = new IInterruptSource[8];
 	private int icw3 = 0;
 
 	public PIC8259(short portBase, int startVector, VM8086 vm) {
@@ -130,14 +130,19 @@ public class PIC8259 implements IPortSpaceDevice, InterruptSource {
 	}
 
 	@Override
-	public void load(CompoundTag tag) {
+	public void load(IStateStorage stateStorage) {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void save(CompoundTag tag) {
+	public void save(IStateStorage stateStorage) {
 		// TODO Auto-generated method stub
+
+	}
+
+	@Override
+	public void deleteSaved(IStateStorage stateStorage) {
 
 	}
 
@@ -156,7 +161,7 @@ public class PIC8259 implements IPortSpaceDevice, InterruptSource {
 	}
 
 	private boolean isRequestValid(int i) {
-		if( sources[i] != null && sources[i].peek() != null)
+		if(sources[i] != null && sources[i].peek() != null)
 			return (inService & ((1 << (i + 1)) - 1)) == 0;
 		return false;
 	}
@@ -201,7 +206,7 @@ public class PIC8259 implements IPortSpaceDevice, InterruptSource {
 		return new PIC8259((byte)0xA0, 0x70, vm8086);
 	}
 
-	public void connect(int i, InterruptSource source) {
+	public void connect(int i, IInterruptSource source) {
 		this.sources[i] = source;
 	}
 }

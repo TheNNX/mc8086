@@ -1,6 +1,5 @@
 package thennx.vm8086.devices;
 
-import java.awt.event.KeyEvent;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import thennx.vm8086.Registers8086;
@@ -19,14 +18,15 @@ public class PS2Keyboard implements IPS2Keyboard {
 	private static final byte RESEND = (byte) 0xFE;
 	private static final byte ACK = (byte) 0xFA;
 	private static final byte ECHO = (byte) 0xEE;
-	private static final byte TESTPASSED = (byte) 0xAA;
+	private static final byte TEST_PASSED = (byte) 0xAA;
+
 	private boolean scanningEnabled = true;
 	private byte lastSentByte = RESEND;
 	private int delayBeforeDecodedMs = 0;
 	private int delayBetweenDecodedMs = 0;
 	private byte ledStates = 0;
 	
-	private class QueuedKey {
+	private static class QueuedKey {
 		public final char character;
 		public final int scancode;
 		public final boolean pressed;
@@ -38,7 +38,7 @@ public class PS2Keyboard implements IPS2Keyboard {
 		}
 	}
 	
-	private ConcurrentLinkedQueue<QueuedKey> queuedKeys = new ConcurrentLinkedQueue<>();
+	private final ConcurrentLinkedQueue<QueuedKey> queuedKeys = new ConcurrentLinkedQueue<>();
 
 	private enum State {
 		nextByteLEDStates, nextByteScanCodeSet, nextByteTypematicByte, normal
@@ -64,7 +64,6 @@ public class PS2Keyboard implements IPS2Keyboard {
 	@Override
 	public void writeToDevice(byte data) {
 		int dataAsInt = data & 0xFF;
-		System.out.println("Controller data " + data);
 		
 		if (state == State.normal) {
 			switch (dataAsInt) {
@@ -101,7 +100,7 @@ public class PS2Keyboard implements IPS2Keyboard {
 				break;
 			case 0xFF:
 				restoreDefaultParameters();
-				sendToController(TESTPASSED);
+				sendToController(TEST_PASSED);
 				break;
 			default:
 				sendToController(RESEND);
@@ -181,14 +180,9 @@ public class PS2Keyboard implements IPS2Keyboard {
 
 	@Override
 	public boolean handleKeystrokeQueue(VM8086 vm8086) {
-		if ((vm8086.registers.FLAGS.intValue() & Registers8086.IF) != 0) {
+		if ((vm8086.registers.FLAGS.intValue() & Registers8086.MASK_IF) != 0) {
 			QueuedKey input = queuedKeys.poll();
 			if (input != null) {
-				System.err.println("Sending " + input.character + " " + input.pressed);
-				//if (input.character == 0xA)
-					//vm8086.writeMemoryBytePhysical(0x4A6, (byte)0xD);
-				//else
-					//vm8086.writeMemoryBytePhysical(0x4A6, (byte)input.character);
 				if (input.pressed)
 					this.keyPressed(input.scancode);
 				else
