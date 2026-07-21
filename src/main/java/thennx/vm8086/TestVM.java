@@ -195,7 +195,6 @@ public class TestVM extends Frame {
 
 		vm8086 = new VM8086(1024 * 1024, bios);
 		vm8086.attachPS2Keyboard(keyboard);
-		vm8086.attachIdeDevice(0, false, new DummyIdeDrive(vm8086, true));
 		// vm8086.addDebugPorts();
 
 		ScreenUpdate screenUpdate = new ScreenUpdate(vm8086);

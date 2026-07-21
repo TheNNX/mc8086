@@ -22,12 +22,9 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 
 @OnlyIn(Dist.CLIENT)
 public class ScreenRenderer implements BlockEntityRenderer<ScreenBlockEntity>, AutoCloseable {
-	private final Font font;
-
 	private static final Object2ObjectArrayMap<ScreenBlockEntity, ScreenInstance> screenInstanceMap = new Object2ObjectArrayMap<>();
 
 	public ScreenRenderer(BlockEntityRendererProvider.Context p_173636_) {
-		font = p_173636_.getFont();
 	}
 
 	private static ScreenInstance addScreenInstance(ScreenBlockEntity blockEntity) {
@@ -44,9 +41,21 @@ public class ScreenRenderer implements BlockEntityRenderer<ScreenBlockEntity>, A
 	}
 
 	@Override
-	public void render(ScreenBlockEntity blockEntity, float p_112498_, PoseStack p_112499_,
-					   MultiBufferSource p_112500_, int p_112501_, int p_112502_) {
-		renderSignWithText(blockEntity, p_112499_, p_112500_);
+	public void render(ScreenBlockEntity blockEntity, float p_112498_, PoseStack poseStack,
+					   MultiBufferSource multiBufferSource, int p_112501_, int p_112502_) {
+		BlockState blockState = blockEntity.getBlockState();
+		Screen block = (Screen) blockState.getBlock();
+		poseStack.pushPose();
+
+		poseStack.translate(0.5f, 0.5f, 0.5f);
+		poseStack.mulPose(Axis.YP.rotationDegrees(-block.getYRotationDegrees(blockState) + 180));
+		poseStack.scale(1.01f, 1.01f, 1.00f);
+		poseStack.translate(-0.5f, -0.5f, -0.50f);
+		poseStack.translate(1.0f / 16.0f, 3.0f / 16.0f, 0.00f);
+		poseStack.scale(14.0f / 16.0f, 11.0f / 16.0f, 1.0f);
+
+		renderNoTranslate(poseStack, multiBufferSource, blockEntity);
+		poseStack.popPose();
 	}
 
 	@Override
@@ -58,31 +67,6 @@ public class ScreenRenderer implements BlockEntityRenderer<ScreenBlockEntity>, A
 										 ScreenBlockEntity blockEntity) {
 		ScreenInstance instance = getScreenInstance(blockEntity);
 		instance.draw(poseStack, multiBufferSource, blockEntity.getBlockPos().getCenter());
-	}
-
-	public static void renderSignWithText(ScreenBlockEntity blockEntity, PoseStack poseStack,
-										  MultiBufferSource multiBufferSource) {
-		BlockState blockState = blockEntity.getBlockState();
-		Screen block = (Screen) blockState.getBlock();
-		poseStack.pushPose();
-
-		translateSign(poseStack, -block.getYRotationDegrees(blockState));
-		translateSignText(poseStack, true);
-
-		renderNoTranslate(poseStack, multiBufferSource, blockEntity);
-		poseStack.popPose();
-	}
-
-	private static void translateSign(PoseStack poseStack, float rotation) {
-		poseStack.translate(0.5f, 0.5f, 0.5f);
-		poseStack.mulPose(Axis.YP.rotationDegrees(rotation + 180));
-		poseStack.scale(1.01f, 1.01f, 1.00f);
-		poseStack.translate(-0.5f, -0.5f, -0.51f);
-	}
-
-	private static void translateSignText(PoseStack p_279133_, boolean p_279134_) {
-		p_279133_.translate(1.0f / 16.0f, 3.0f / 16.0f, 0.01f);
-		p_279133_.scale(14.0f / 16.0f, 11.0f / 16.0f, 1.0f);
 	}
 
 	static class ScreenInstance implements AutoCloseable {
@@ -131,7 +115,7 @@ public class ScreenRenderer implements BlockEntityRenderer<ScreenBlockEntity>, A
 					.endVertex();
 			vertexconsumer.vertex(matrix4f, 1.0F, 0.0F, -0.001F).color(255, 255, 255, 255).uv(1.0F, 0.0F).uv2(0xF000F0)
 					.endVertex();
-			vertexconsumer.vertex(matrix4f, 0.0F, 0.0F, -0.01F).color(255, 255, 255, 255).uv(0.0F, 0.0F).uv2(0xF000F0)
+			vertexconsumer.vertex(matrix4f, 0.0F, 0.0F, -0.001F).color(255, 255, 255, 255).uv(0.0F, 0.0F).uv2(0xF000F0)
 					.endVertex();
 
 		}

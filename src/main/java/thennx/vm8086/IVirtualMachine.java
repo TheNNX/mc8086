@@ -1,10 +1,11 @@
 package thennx.vm8086;
 
+import thennx.vm8086.devices.IPortSpaceDevice;
 import thennx.vm8086.devices.IStateful;
 
-public interface IVirtualMachine extends IStateful {
-    void run();
+import java.util.List;
 
+public interface IVirtualMachine extends IStateful {
     boolean step();
 
     /**
@@ -27,11 +28,15 @@ public interface IVirtualMachine extends IStateful {
 
     byte readMemoryBytePhysical(int physicalAddress);
 
-    short readMemoryShortPhysical(int physicalAddress);
-
     void writeMemoryBytePhysical(int physicalAddress, byte b);
 
-    void writeMemoryShortPhysical(int physicalAddress, short w);
-
     long getFrequencyHz();
+
+    List<IPortSpaceDevice> getDevices();
+
+    boolean tryAddDevice(IPortSpaceDevice device);
+
+    boolean tryRemoveDevice(IPortSpaceDevice device);
+
+    void restart();
 }

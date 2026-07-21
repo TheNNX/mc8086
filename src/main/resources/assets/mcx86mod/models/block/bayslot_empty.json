@@ -1,0 +1,20 @@
+{
+  "textures": {
+    "0": "mcx86mod:block/emptybay"
+  },
+  "elements": [
+    {
+      "from": [1, 1, 0],
+      "to": [9, 5, 1],
+      "rotation": {"angle": 0, "axis": "y", "origin": [1, 0, 1]},
+      "faces": {
+        "north": {"uv": [0, 0, 8, 4], "texture": "#0"},
+        "south": {"uv": [8, 8, 16, 12], "texture": "#0"},
+        "east": {"uv": [8, 12, 16, 13], "texture": "#0"},
+        "west": {"uv": [0, 12, 8, 13], "texture": "#0"},
+        "up": {"uv": [0, 4, 8, 5], "texture": "#0"},
+        "down": {"uv": [8, 0, 16, 1], "texture": "#0"}
+      }
+    }
+  ]
+}

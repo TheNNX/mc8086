@@ -33,6 +33,9 @@ public class Node<T extends INodeOwner> {
             value.neighbours[direction.getOpposite().ordinal()] = this;
             value.getOwner().notifyNeighbourChange(direction.getOpposite(), this.getOwner(), prevValuesNeighbour == null ? null : prevValuesNeighbour.getOwner());
         }
+        else if (prevNeighbour != null) {
+            prevNeighbour.getOwner().notifyNeighbourChange(direction.getOpposite(), null, this.getOwner());
+        }
         getOwner().notifyNeighbourChange(direction, value == null ? null : value.getOwner(), prevNeighbour == null ? null : prevNeighbour.getOwner());
     }
 

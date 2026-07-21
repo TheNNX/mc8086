@@ -9,17 +9,24 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.entity.ChestBlockEntity;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.LevelResource;
-import thennx.mcx86.MCx86Mod;
-import thennx.mcx86.NbtStateStorage;
+import net.minecraftforge.items.IItemHandler;
+import net.minecraftforge.items.ItemStackHandler;
+import thennx.mcx86.*;
+import thennx.mcx86.item.BayItem;
+import thennx.mcx86.item.CardItem;
+import thennx.mcx86.item.MotherboardItem;
 import thennx.mcx86.pool.PoolManager;
 import thennx.mcx86.screen.ScreenBlockEntity;
-import thennx.mcx86.VideoMemoryBank;
 import thennx.mcx86.congraph.AbstratcNodeBlockEntity;
 import thennx.mcx86.congraph.INodeOwner;
 import thennx.mcx86.congraph.Node;
@@ -34,14 +41,13 @@ public class ComputerBlockEntity extends AbstratcNodeBlockEntity {
 
 	private IVirtualMachine virtualMachine = null;
 	private PS2Keyboard keyboard;
-	private IBlockDevice bootDrive;
 	private boolean devicesDiscovered = false;
 	private boolean isScreenDirty = false;
 	private Path savePath = null;
 	private boolean delayedLoadQueued = false;
 	private ScreenBlockEntity screenEntity = null;
 	private Node<ComputerBlockEntity> node = new Node<>(this);
-	private ItemStack motherboard = ItemStack.EMPTY;
+	private final ComputerBlockEntityInventoryHandler inventoryHandler = new ComputerBlockEntityInventoryHandler(this);
 
 	public ComputerBlockEntity(BlockPos pos, BlockState state) {
 		super(MCx86Mod.COMPUTER_BLOCK_ENTITY.get(), pos, state);
@@ -49,7 +55,7 @@ public class ComputerBlockEntity extends AbstratcNodeBlockEntity {
 
 	public void createVm() throws IOException {
 		if (virtualMachine != null) {
-			PoolManager.getInstance().unregisterBlockEntity(this);
+			shutdownVm(true);
 		}
 
 		delayedLoadQueued = false;
@@ -70,9 +76,6 @@ public class ComputerBlockEntity extends AbstratcNodeBlockEntity {
 
 		keyboard = new PS2Keyboard();
 		vm8086.attachPS2Keyboard(keyboard);
-
-		this.bootDrive = new DummyIdeDrive(vm8086, false);
-		vm8086.attachIdeDevice(0, false, bootDrive);
 
 		vm8086.memory[0xB8000 / IMemoryBank.BANK_SIZE] = new VideoMemoryBank(this);
 
@@ -99,7 +102,9 @@ public class ComputerBlockEntity extends AbstratcNodeBlockEntity {
 			err.printStackTrace(System.err);
 		}
 
-		PoolManager.getInstance().registerBlockEntity(this);
+		if (virtualMachine.isRunning()) {
+			resumeVm();
+		}
 		updateVgaText();
 	}
 
@@ -160,21 +165,22 @@ public class ComputerBlockEntity extends AbstratcNodeBlockEntity {
 		}
 	}
 
-	private CompoundTag saveInventory() {
-		CompoundTag tag = new CompoundTag();
-
-		tag.put("motherboard", motherboard.save(new CompoundTag()));
-
+	@Override
+	public CompoundTag getUpdateTag() {
+		CompoundTag tag = super.getUpdateTag();
+		tag.put("inventory", inventoryHandler.serializeNBT());
 		return tag;
 	}
 
-	private void loadInventory(CompoundTag tag) {
-		motherboard = ItemStack.of(tag.getCompound("motherboard"));
+	@Override
+	public void handleUpdateTag(CompoundTag tag) {
+		super.handleUpdateTag(tag);
+		inventoryHandler.deserializeNBT(tag.getCompound("inventory"));
 	}
 
 	@Override
 	protected void saveAdditional(CompoundTag tag) {
-		tag.put("inventory", saveInventory());
+		tag.put("inventory", inventoryHandler.serializeNBT());
 
 		if (level == null || level.isClientSide)
 			return;
@@ -201,16 +207,12 @@ public class ComputerBlockEntity extends AbstratcNodeBlockEntity {
 
 	@Override
 	public void load(CompoundTag nbt) {
-		loadInventory(nbt.getCompound("inventory"));
-
-		if (level != null && level.isClientSide) {
-			return;
-		}
-
 		try {
 			if (virtualMachine == null) {
 				createVm();
 			}
+
+			inventoryHandler.deserializeNBT(nbt.getCompound("inventory"));
 
 			delayedLoadQueued = true;
 			synchronized (virtualMachine) {
@@ -222,14 +224,41 @@ public class ComputerBlockEntity extends AbstratcNodeBlockEntity {
 		}
 	}
 
+	public void resumeVm() {
+		if (level == null || level.isClientSide())
+			return;
+		getVM().setRunning(true);
+		setChanged();
+		PoolManager.getInstance().registerBlockEntity(this);
+		level.setBlock(getBlockPos(), getBlockState().setValue(ComputerBlock.POWER_STATE, 1), 3);
+	}
+
+	public void startVm() {
+		if (level == null || level.isClientSide())
+			return;
+		getVM().restart();
+		resumeVm();
+	}
+
+	public void shutdownVm(boolean updateBlockState) {
+		if (level == null || level.isClientSide())
+			return;
+		getVM().setRunning(false);
+		setChanged();
+		PoolManager.getInstance().unregisterBlockEntity(this);
+		if (updateBlockState)
+			level.setBlock(getBlockPos(), getBlockState().setValue(ComputerBlock.POWER_STATE, 0), 3);
+		updateVgaText();
+	}
+
 	@Override
 	public void onChunkUnloaded() {
 		PoolManager.getInstance().unregisterBlockEntity(this);
 		super.onChunkUnloaded();
 	}
 
-	public void destroyVm() {
-        PoolManager.getInstance().unregisterBlockEntity(this);
+	public void deleteVm() {
+        shutdownVm(false);
 
         try {
             this.virtualMachine.deleteSaved(new FileMemoryStorage(savePath));
@@ -264,14 +293,53 @@ public class ComputerBlockEntity extends AbstratcNodeBlockEntity {
 	}
 
 	public boolean canRun() {
-		return !motherboard.isEmpty();
+		return !inventoryHandler.getMotherboard().isEmpty();
 	}
 
-	public ItemStack replaceMotherboard(ItemStack newStack) {
-		ItemStack oldMotherboard = motherboard;
-		motherboard = newStack;
+	public boolean tryInsert(Player player, InteractionHand hand, ItemStack stack) {
+		if (stack.getItem() instanceof MotherboardItem) {
+			return inventoryHandler.replaceMotherboard(stack);
+		}
+		else if (stack.getItem() instanceof CardItem) {
+			return inventoryHandler.insertCard(stack);
+		}
+		else if (stack.getItem() instanceof BayItem bayItem) {
+			return inventoryHandler.insertBayItem(stack);
+		}
+		return false;
+	}
 
-		setChanged();
-		return oldMotherboard;
+	void addDevice(IPortSpaceDevice device) {
+		if (device != null)
+			getVM().tryAddDevice(device);
+	}
+
+	void removeDevice(IPortSpaceDevice device) {
+		if (device != null)
+			getVM().tryRemoveDevice(device);
+	}
+
+	public ItemStack[] getBayItems() {
+		return inventoryHandler.getBayItems();
+	}
+
+	void onBayItemAdded(ItemStack stack) {
+		Item item = stack.getItem();
+
+		if (item instanceof IDeviceFactory deviceFactory) {
+			addDevice(deviceFactory.createDevice(this));
+		}
+	}
+
+	public ItemStack getMotherboard() {
+		return inventoryHandler.getMotherboard();
+	}
+
+	public IItemHandler getInventoryHandler() {
+		return this.inventoryHandler;
+	}
+
+	public ItemStack[] getCards() {
+		return this.inventoryHandler.getCards();
 	}
 }

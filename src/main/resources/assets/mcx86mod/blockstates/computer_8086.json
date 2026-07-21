@@ -1,23 +1,23 @@
 {
-  "defaults": {
-    "render_type": "minecraft:cutout"
-  },
-  "variants": {
-    "case_off=false,facing=north,power_state=0": { "model": "mcx86mod:block/computer_8086" },
-    "case_off=false,facing=south,power_state=0": { "model": "mcx86mod:block/computer_8086", "y": 180 },
-    "case_off=false,facing=west,power_state=0": { "model": "mcx86mod:block/computer_8086", "y": 270 },
-    "case_off=false,facing=east,power_state=0": { "model": "mcx86mod:block/computer_8086", "y": 90 },
-    "case_off=false,facing=north,power_state=1": { "model": "mcx86mod:block/computer_8086_powered" },
-    "case_off=false,facing=south,power_state=1": { "model": "mcx86mod:block/computer_8086_powered", "y": 180 },
-    "case_off=false,facing=west,power_state=1": { "model": "mcx86mod:block/computer_8086_powered", "y": 270 },
-    "case_off=false,facing=east,power_state=1": { "model": "mcx86mod:block/computer_8086_powered", "y": 90 },
-    "case_off=true,facing=north,power_state=0": { "model": "mcx86mod:block/computer_8086_open" },
-    "case_off=true,facing=south,power_state=0": { "model": "mcx86mod:block/computer_8086_open", "y": 180 },
-    "case_off=true,facing=west,power_state=0": { "model": "mcx86mod:block/computer_8086_open", "y": 270 },
-    "case_off=true,facing=east,power_state=0": { "model": "mcx86mod:block/computer_8086_open", "y": 90 },
-    "case_off=true,facing=north,power_state=1": { "model": "mcx86mod:block/computer_8086_open" },
-    "case_off=true,facing=south,power_state=1": { "model": "mcx86mod:block/computer_8086_open", "y": 180 },
-    "case_off=true,facing=west,power_state=1": { "model": "mcx86mod:block/computer_8086_open", "y": 270 },
-    "case_off=true,facing=east,power_state=1": { "model": "mcx86mod:block/computer_8086_open", "y": 90 }
-  }
+  "multipart": [
+    { "when": { "AND": [ { "case_off": "false", "facing":"north" } ] }, "apply": { "model": "mcx86mod:block/computer_8086" } },
+    { "when": { "AND": [ { "case_off": "false", "facing":"south" } ] }, "apply": { "model": "mcx86mod:block/computer_8086", "y": 180 } },
+    { "when": { "AND": [ { "case_off": "false", "facing":"west" } ] }, "apply": { "model": "mcx86mod:block/computer_8086", "y": 270 } },
+    { "when": { "AND": [ { "case_off": "false", "facing":"east" } ] }, "apply": { "model": "mcx86mod:block/computer_8086", "y": 90 } },
+
+    { "when": { "AND": [ {"power_state": "0", "facing":"north"} ] }, "apply": { "model": "mcx86mod:block/computer_8086_unpowered" } },
+    { "when": { "AND": [ {"power_state": "0", "facing":"south"} ] }, "apply": { "model": "mcx86mod:block/computer_8086_unpowered", "y": 180 } },
+    { "when": { "AND": [ {"power_state": "0", "facing":"west"} ] }, "apply": { "model": "mcx86mod:block/computer_8086_unpowered", "y": 270 } },
+    { "when": { "AND": [ {"power_state": "0", "facing":"east"} ] }, "apply": { "model": "mcx86mod:block/computer_8086_unpowered", "y": 90 } },
+
+    { "when": { "AND": [{ "power_state": "1", "facing":"north" }] }, "apply": { "model": "mcx86mod:block/computer_8086_powered" } },
+    { "when": { "AND": [{ "power_state": "1", "facing":"south" }] }, "apply": { "model": "mcx86mod:block/computer_8086_powered", "y": 180 } },
+    { "when": { "AND": [{ "power_state": "1", "facing":"west" }] }, "apply": { "model": "mcx86mod:block/computer_8086_powered", "y": 270 } },
+    { "when": { "AND": [{ "power_state": "1", "facing":"east" }] }, "apply": { "model": "mcx86mod:block/computer_8086_powered", "y": 90 } },
+
+    { "when": { "AND": [{ "case_off": "true", "facing":"north" }] }, "apply": { "model": "mcx86mod:block/computer_8086_open" } },
+    { "when": { "AND": [{ "case_off": "true", "facing":"south" }] }, "apply": { "model": "mcx86mod:block/computer_8086_open", "y": 180 } },
+    { "when": { "AND": [{ "case_off": "true", "facing":"west" }] }, "apply": { "model": "mcx86mod:block/computer_8086_open", "y": 270 } },
+    { "when": { "AND": [{ "case_off": "true", "facing":"east" }] }, "apply": { "model": "mcx86mod:block/computer_8086_open", "y": 90 } }
+  ]
 }

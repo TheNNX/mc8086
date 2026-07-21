@@ -1,6 +1,13 @@
 {
-  "parent": "mcx86mod:block/computer_8086_base",
+  "parent": "minecraft:block/cube",
+  "render_type": "cutout",
   "textures": {
-    "front": "mcx86mod:block/computer_8086_front"
+    "north": "mcx86mod:block/computer_8086_front",
+    "south": "mcx86mod:block/computer_8086_back",
+    "up": "mcx86mod:block/computer_8086_top",
+    "down": "mcx86mod:block/computer_8086_bottom",
+    "west": "mcx86mod:block/computer_8086_left",
+    "east": "mcx86mod:block/computer_8086_right",
+    "particle": "mcx86mod:block/computer_8086_front"
   }
 }

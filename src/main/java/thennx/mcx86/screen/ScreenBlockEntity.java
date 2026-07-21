@@ -89,6 +89,8 @@ public class ScreenBlockEntity extends AbstratcNodeBlockEntity {
         }
         else if (prevNeighbour instanceof ComputerBlockEntity computerBlockEntity && connectedComputerBlockEntity == computerBlockEntity) {
             this.connectedComputerBlockEntity = null;
+            if (level != null && !level.isClientSide())
+                this.updateVgaText();
         }
     }
 

@@ -82,6 +82,7 @@ public class PoolManager {
 
     public void unregisterBlockEntity(ComputerBlockEntity computerBlockEntity) {
         PoolJob job = null;
+
         synchronized (registered) {
             job = registered.remove(computerBlockEntity);
             if (job == null) {

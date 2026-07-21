@@ -1,13 +1,13 @@
 package thennx.vm8086.devices;
 
+import java.io.IOException;
 import java.util.LinkedList;
 
 import thennx.vm8086.IStateStorage;
 
-public class BarebonesATAChannel implements IPortSpaceDevice, IStateful {
-
-	private short basePort;
-	private short controlPort;
+public class BarebonesATAChannel implements IPortSpaceDevice, IStateful, IInterruptSource {
+	private final short basePort;
+	private final short controlPort;
 	private boolean slaveSelected = false;
 	private byte headsOrLba28High4 = 0;
 	private boolean usingLba = false;
@@ -21,16 +21,14 @@ public class BarebonesATAChannel implements IPortSpaceDevice, IStateful {
 	private boolean deviceSeekComplete = true;
 	private boolean dataRequest = false;
 	private boolean errorFlag = false;
-	private boolean irqAckAwaited = false;
 	private boolean irqPending = false;
 	private boolean writeInProgress = false;
-
 	private int waitingForBytesOfDataIn = 0;
 
-	private LinkedList<Byte> dataInQueue = new LinkedList<>();
-	private LinkedList<Byte> dataOutQueue = new LinkedList<>();
+	private final LinkedList<Byte> dataInQueue = new LinkedList<>();
+	private final LinkedList<Byte> dataOutQueue = new LinkedList<>();
 
-	private IBlockDevice[] drives = new IBlockDevice[2];
+	private final IBlockDevice[] drives = new IBlockDevice[2];
 
 	public IBlockDevice getBlockDevice(int i) {
 		return this.drives[i];
@@ -248,7 +246,7 @@ public class BarebonesATAChannel implements IPortSpaceDevice, IStateful {
 	private void processDataRequestStatus() {
 		IBlockDevice selectedBlockDevice = getSelectedDevice();
 
-		if (waitingForBytesOfDataIn <= dataInQueue.size() && 0 == dataOutQueue.size()) {
+		if (waitingForBytesOfDataIn <= dataInQueue.size() && dataOutQueue.isEmpty()) {
 			if (writeInProgress) {
 				long effectiveLba = getEffectiveLbaForNormalIo();
 				for (int i = 0; i < secCount; i++) {
@@ -287,19 +285,17 @@ public class BarebonesATAChannel implements IPortSpaceDevice, IStateful {
 		int bitshift = lbaIndex * 8;
 		int antimask = ~(0xFF << bitshift);
 
-		lba = (lba & antimask) | (data << bitshift);
+		lba = (lba & antimask) | ((long) data << bitshift);
 	}
 
 	@Override
 	public byte readByte(short port) {
 		if (port >= controlPort) {
-			switch (port - this.controlPort) {
-			case 2:
-				return getStatus();
-			default:
-				return -1;
-			}
-		}
+            if (port - this.controlPort == 0) {
+                return getStatus();
+            }
+            return -1;
+        }
 
 		switch (port - this.basePort) {
 		case 0:
@@ -317,7 +313,6 @@ public class BarebonesATAChannel implements IPortSpaceDevice, IStateful {
 		case 6:
 			return getHddvSel();
 		case 7:
-			irqAckAwaited = false;
 			irqPending = false;
 			return getStatus();
 		default:
@@ -370,18 +365,67 @@ public class BarebonesATAChannel implements IPortSpaceDevice, IStateful {
 	}
 
 	@Override
-	public void load(IStateStorage stateStorage) {
+	public void save(IStateStorage stateStorage) throws IOException {
+		stateStorage.set("slaveSelected", slaveSelected);
+		stateStorage.set("headsOrLba28High4", headsOrLba28High4);
+		stateStorage.set("usingLba", usingLba);
+		stateStorage.set("errorByte", errorByte);
+		stateStorage.set("secCount", secCount);
+		stateStorage.set("irqEnabled", irqEnabled);
+		stateStorage.set("lba", lba);
+		stateStorage.set("deviceBusy", deviceBusy);
+		stateStorage.set("deviceReady", deviceReady);
+		stateStorage.set("deviceFault", deviceFault);
+		stateStorage.set("deviceSeekComplete", deviceSeekComplete);
+		stateStorage.set("dataRequest", dataRequest);
+		stateStorage.set("errorFlag", errorFlag);
+		stateStorage.set("irqPending", irqPending);
+		stateStorage.set("writeInProgress", writeInProgress);
+		stateStorage.set("waitingForBytesOfDataIn", waitingForBytesOfDataIn);
 
+		for (IBlockDevice drive : drives) {
+			if (drive instanceof IStateful stateful) {
+				stateful.save(stateStorage);
+			}
+		}
 	}
 
 	@Override
-	public void save(IStateStorage stateStorage) {
+	public void load(IStateStorage stateStorage) throws IOException {
+		slaveSelected = stateStorage.getBoolean("slaveSelected").orElse(slaveSelected);
+		headsOrLba28High4 = stateStorage.getByte("headsOrLba28High4").orElse(headsOrLba28High4);
+		usingLba = stateStorage.getBoolean("usingLba").orElse(usingLba);
+		errorByte = stateStorage.getByte("errorByte").orElse(errorByte);
+		secCount = stateStorage.getInt("secCount").orElse(secCount);
+		irqEnabled = stateStorage.getBoolean("irqEnabled").orElse(irqEnabled);
+		lba = stateStorage.getLong("lba").orElse(lba);
+		deviceBusy = stateStorage.getBoolean("deviceBusy").orElse(deviceBusy);
+		deviceReady = stateStorage.getBoolean("deviceReady").orElse(deviceReady);
+		deviceFault = stateStorage.getBoolean("deviceFault").orElse(deviceFault);
+		deviceSeekComplete = stateStorage.getBoolean("deviceSeekComplete").orElse(deviceSeekComplete);
+		dataRequest = stateStorage.getBoolean("dataRequest").orElse(dataRequest);
+		errorFlag = stateStorage.getBoolean("errorFlag").orElse(errorFlag);
+		irqPending = stateStorage.getBoolean("irqPending").orElse(irqPending);
+		writeInProgress = stateStorage.getBoolean("writeInProgress").orElse(writeInProgress);
+		waitingForBytesOfDataIn = stateStorage.getInt("waitingForBytesOfDataIn").orElse(waitingForBytesOfDataIn);
 
+		for (IBlockDevice drive : drives) {
+			if (drive instanceof IStateful stateful) {
+				stateful.load(stateStorage);
+			}
+		}
 	}
 
 	@Override
-	public void deleteSaved(IStateStorage stateStorage) {
-
+	public void deleteSaved(IStateStorage stateStorage) throws IOException {
+		for (IBlockDevice drive : drives) {
+			if (drive != null) {
+				drive.deleteImage();
+			}
+			if (drive instanceof IStateful stateful) {
+				stateful.deleteSaved(stateStorage);
+			}
+		}
 	}
 
 	public void addDevice(IBlockDevice device, boolean slave) {
@@ -389,5 +433,20 @@ public class BarebonesATAChannel implements IPortSpaceDevice, IStateful {
 			this.drives[1] = device;
 		else
 			this.drives[0] = device;
+	}
+
+	@Override
+	public InterruptRequest consume() {
+		irqPending = false;
+		return new InterruptRequest(this);
+	}
+
+	@Override
+	public InterruptRequest peek() {
+		if (!irqPending) {
+			return null;
+		}
+
+		return new InterruptRequest(this);
 	}
 }

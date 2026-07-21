@@ -14,6 +14,7 @@ public class PhysicalMemoryBank implements IMemoryBank {
     public PhysicalMemoryBank() {
     }
 
+    @Override
     public boolean isReadonly() {
         return readonly;
     }

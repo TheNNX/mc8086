@@ -9,6 +9,8 @@ public interface IBlockDevice {
 
 	void saveCache();
 
+	void deleteImage();
+
 	boolean isRemovable();
 
 	short getCylinders();

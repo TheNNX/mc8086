@@ -7,6 +7,7 @@ import net.minecraft.world.level.block.BaseEntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import org.jetbrains.annotations.Nullable;
+import thennx.mcx86.MCx86Mod;
 
 public abstract class AbstractNodeBlock extends BaseEntityBlock {
     protected AbstractNodeBlock(Properties p_49224_) {
@@ -29,13 +30,16 @@ public abstract class AbstractNodeBlock extends BaseEntityBlock {
 
     @Override
     public void onRemove(BlockState p_60515_, Level level, BlockPos pos, BlockState p_60518_, boolean p_60519_) {
-        if (!level.isClientSide) {
-            BlockEntity blockEntity = level.getBlockEntity(pos);
+        if (!p_60518_.is(MCx86Mod.COMPUTER_BLOCK.get())) {
+            if (!level.isClientSide) {
+                BlockEntity blockEntity = level.getBlockEntity(pos);
 
-            if (blockEntity instanceof INodeOwner nodeOwner) {
-                nodeOwner.getNode().removeNeighbours();
+                if (blockEntity instanceof INodeOwner nodeOwner) {
+                    nodeOwner.getNode().removeNeighbours();
+                }
             }
+
+            super.onRemove(p_60515_, level, pos, p_60518_, p_60519_);
         }
-        super.onRemove(p_60515_, level, pos, p_60518_, p_60519_);
     }
 }

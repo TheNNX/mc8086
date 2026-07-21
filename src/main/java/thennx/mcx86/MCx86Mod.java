@@ -1,8 +1,12 @@
 package thennx.mcx86;
 
-import net.minecraft.client.renderer.ItemBlockRenderTypes;
-import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.gui.screens.MenuScreens;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.flag.FeatureFlags;
+import net.minecraft.world.inventory.MenuType;
 import net.minecraftforge.client.ConfigScreenHandler;
+import net.minecraftforge.client.event.ModelEvent;
+import net.minecraftforge.common.extensions.IForgeMenuType;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import org.slf4j.Logger;
 
@@ -32,7 +36,11 @@ import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
 import thennx.mcx86.computer.ComputerBlock;
 import thennx.mcx86.computer.ComputerBlockEntity;
+import thennx.mcx86.computer.ComputerInternalsRenderer;
+import thennx.mcx86.gui.ComputerInventoryMenu;
+import thennx.mcx86.gui.ComputerInventoryScreen;
 import thennx.mcx86.gui.ConfigScreen;
+import thennx.mcx86.item.*;
 import thennx.mcx86.packets.MCx86PacketHandler;
 import thennx.mcx86.screen.Screen;
 import thennx.mcx86.screen.ScreenBlockEntity;
@@ -42,10 +50,16 @@ import thennx.mcx86.screen.ScreenRenderer;
 @Mod(MCx86Mod.MODID)
 public class MCx86Mod {
 	public static final String MODID = "mcx86mod";
+	public static final ResourceLocation BAYSLOT_FLOPPY_RES = new ResourceLocation(MODID, "block/bayslot_floppydrive");
+	public static final ResourceLocation BAYSLOT_EMPTY_RES = new ResourceLocation(MODID, "block/bayslot_empty");
+	public static final ResourceLocation BAYSLOT_BASE_RES = new ResourceLocation(MODID, "block/bayslot_base");
 
 	public static final Logger LOGGER = LogUtils.getLogger();
 	public static final DeferredRegister<Block> BLOCKS = DeferredRegister.create(ForgeRegistries.BLOCKS, MODID);
 	public static final DeferredRegister<Item> ITEMS = DeferredRegister.create(ForgeRegistries.ITEMS, MODID);
+	public static final DeferredRegister<MenuType<?>> MENUS = DeferredRegister.create(ForgeRegistries.MENU_TYPES, MODID);
+
+	public static final RegistryObject<MenuType<ComputerInventoryMenu>> COMPUTER_MENU = MENUS.register("computer_menu", () -> IForgeMenuType.create(ComputerInventoryMenu::new));
 
 	public static final DeferredRegister<CreativeModeTab> CREATIVE_MODE_TABS = DeferredRegister
 			.create(Registries.CREATIVE_MODE_TAB, MODID);
@@ -60,9 +74,18 @@ public class MCx86Mod {
 			() -> new BlockItem(COMPUTER_BLOCK.get(), new Item.Properties()));
 
 	public static final RegistryObject<Item> MOTHERBOARD_8086 = ITEMS.register("motherboard_8086",
-			() -> new MotherboardItem(new Item.Properties()));
+			() -> new MotherboardItem(5, true));
 
 	public static final RegistryObject<Item> SCREWDRIVER = ITEMS.register("screwdriver", () -> new Item(new Item.Properties().stacksTo(1)));
+	public static final RegistryObject<Item> REDSTONE_CARD = ITEMS.register("redstone_card", RedstoneCardItem::new);
+	public static final RegistryObject<Item> DISK_CONTROLLER_CARD = ITEMS.register("disk_controller_card", DiskControllerCardItem::new);
+	public static final RegistryObject<Item> CGA_CARD = ITEMS.register("video_card_cga", CgaCardItem::new);
+	public static final RegistryObject<Item> FLOPPY_DRIVE = ITEMS.register("floppy_drive", () -> new BayItem("block/bayslot_floppydrive", new Item.Properties()));
+	public static final RegistryObject<Item> FLOPPY_DISK8_250 = ITEMS.register("floppy_disk_8_250", () -> new FloppyItem(FloppyItem.Formfactor.F_8, 1, 77, 26, 128));
+	public static final RegistryObject<Item> FLOPPY_DISK514_360 = ITEMS.register("floppy_disk_514_360", () -> new FloppyItem(FloppyItem.Formfactor.F_5_1_4, 1, 80, 9, 512));
+	public static final RegistryObject<Item> FLOPPY_DISK35_360 = ITEMS.register("floppy_disk_35_360", () -> new FloppyItem(FloppyItem.Formfactor.F_3_5, 1, 80, 9, 512));
+	public static final RegistryObject<Item> FLOPPY_DISK35_720 = ITEMS.register("floppy_disk_35_720", () -> new FloppyItem(FloppyItem.Formfactor.F_3_5, 2, 80, 9, 512));
+	public static final RegistryObject<Item> FLOPPY_DISK35_1440 = ITEMS.register("floppy_disk_35_1440", () -> new FloppyItem(FloppyItem.Formfactor.F_3_5, 2, 80, 18, 512));
 
 	public static final RegistryObject<Block> SCREEN = BLOCKS.register("screen",
 			() -> new Screen(BlockBehaviour.Properties.of().mapColor(MapColor.STONE)));
@@ -83,6 +106,18 @@ public class MCx86Mod {
 						output.accept(SCREEN_ITEM.get());
 						output.accept(WIRE_BLOCK_ITEM.get());
 						output.accept(SCREWDRIVER.get());
+
+						output.accept(DISK_CONTROLLER_CARD.get());
+						output.accept(CGA_CARD.get());
+						output.accept(REDSTONE_CARD.get());
+
+						output.accept(FLOPPY_DRIVE.get());
+
+						output.accept(FLOPPY_DISK8_250.get());
+						output.accept(FLOPPY_DISK514_360.get());
+						output.accept(FLOPPY_DISK35_360.get());
+						output.accept(FLOPPY_DISK35_720.get());
+						output.accept(FLOPPY_DISK35_1440.get());
 					}).build());
 
 	public static final RegistryObject<BlockEntityType<ScreenBlockEntity>> SCREEN_BLOCK_ENTITY = BLOCK_ENTITY_TYPES
@@ -107,8 +142,8 @@ public class MCx86Mod {
 		ITEMS.register(modEventBus);
 		BLOCK_ENTITY_TYPES.register(modEventBus);
 		CREATIVE_MODE_TABS.register(modEventBus);
+		MENUS.register(modEventBus);
 
-		// Register the packets used by the mod
 		MCx86PacketHandler.registerMessages();
 
 		MinecraftForge.EVENT_BUS.register(this);
@@ -125,14 +160,22 @@ public class MCx86Mod {
 				() -> new ConfigScreenHandler.ConfigScreenFactory((client, parentScreen) -> new ConfigScreen(parentScreen))
 		);
 
-		//ItemBlockRenderTypes.setRenderLayer(COMPUTER_BLOCK.get(), RenderType.translucent());
+		event.enqueueWork(() -> MenuScreens.register(COMPUTER_MENU.get(), ComputerInventoryScreen::new));
 	}
 
 	@Mod.EventBusSubscriber(modid = MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 	public static class ClientModEvents {
 		@SubscribeEvent
 		public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
+			event.registerBlockEntityRenderer(COMPUTER_BLOCK_ENTITY.get(), ComputerInternalsRenderer::new);
 			event.registerBlockEntityRenderer(SCREEN_BLOCK_ENTITY.get(), ScreenRenderer::new);
+		}
+
+		@SubscribeEvent
+		public static void onRegisterAdditional(ModelEvent.RegisterAdditional event) {
+			event.register(BAYSLOT_BASE_RES);
+			event.register(BAYSLOT_EMPTY_RES);
+			event.register(BAYSLOT_FLOPPY_RES);
 		}
 	}
 }

@@ -4,6 +4,9 @@ import static thennx.vm8086.Registers8086.*;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Random;
 
 import thennx.vm8086.Registers8086.Register16;
 import thennx.vm8086.devices.*;
@@ -58,8 +61,6 @@ public class VM8086 implements IVirtualMachine {
 	public Registers8086 registers;
 	private SimplifiedKeyboardController keyboardController = new SimplifiedKeyboardController(this);
 	public IMemoryBank[] memory = new IMemoryBank[1024 * 1024 / IMemoryBank.BANK_SIZE];
-	private BarebonesATAChannel primaryIde = new BarebonesATAChannel((short) 0x1F0, (short) 0x3F6);
-	private BarebonesATAChannel secondaryIde = new BarebonesATAChannel((short) 0x170, (short) 0x376);
 
 	private PIC8259 masterPic = PIC8259.createMaster(this);
 	private PIC8259 slavePic = PIC8259.createSlave(this);
@@ -81,20 +82,11 @@ public class VM8086 implements IVirtualMachine {
 		masterPic.connect(0, pit);
 		masterPic.connect(1, keyboardController);
 
-		if (primaryIde != null) {
-			portSpaceDevices.add(primaryIde);
-		}
-		if (secondaryIde != null) {
-			portSpaceDevices.add(secondaryIde);
-		}
-
 		registers.IP.write((short) 0x0000);
 		registers.CS.write((short) 0xFFFF);
 		registers.DX.write((short) 0x0000);
 		registers.AX.write((short) 0);
 		registers.CX.write((short) 0);
-
-		running = true;
 	}
 
 	public void addDebugPorts() {
@@ -113,19 +105,8 @@ public class VM8086 implements IVirtualMachine {
 			}
 		}
 
-		initCpu();
-	}
-
-	private BarebonesATAChannel getIdeChannel(int index) {
-		if (index == 0)
-			return primaryIde;
-		else
-			return secondaryIde;
-	}
-
-	public void attachIdeDevice(int index, boolean slave, IBlockDevice device) {
-		BarebonesATAChannel channel = this.getIdeChannel(index);
-		channel.addDevice(device, slave);
+		restart();
+		running = true;
 	}
 
 	@Override
@@ -133,7 +114,6 @@ public class VM8086 implements IVirtualMachine {
 		return memory[physicalAddress / IMemoryBank.BANK_SIZE].getByte(physicalAddress % IMemoryBank.BANK_SIZE);
 	}
 
-	@Override
 	public short readMemoryShortPhysical(int physicalAddress) {
 		/* java uses big endian */
 		byte lsb = readMemoryBytePhysical(physicalAddress);
@@ -160,8 +140,7 @@ public class VM8086 implements IVirtualMachine {
 	public void writeMemoryBytePhysical(int physicalAddress, byte b) {
 		memory[physicalAddress / IMemoryBank.BANK_SIZE].setByte(physicalAddress % IMemoryBank.BANK_SIZE, b);;
 	}
-
-	@Override
+	
 	public void writeMemoryShortPhysical(int physicalAddress, short w) {
 		writeMemoryBytePhysical(physicalAddress, (byte) (w & 0xFF));
 		writeMemoryBytePhysical(physicalAddress + 1, (byte) ((w & 0xFF00) / 256));
@@ -170,6 +149,36 @@ public class VM8086 implements IVirtualMachine {
 	@Override
 	public long getFrequencyHz() {
 		return 4770000;
+	}
+
+	@Override
+	public List<IPortSpaceDevice> getDevices() {
+		return Collections.unmodifiableList(portSpaceDevices);
+	}
+
+	@Override
+	public boolean tryAddDevice(IPortSpaceDevice device) {
+		return portSpaceDevices.add(device);
+	}
+
+	@Override
+	public boolean tryRemoveDevice(IPortSpaceDevice device) {
+		return portSpaceDevices.remove(device);
+	}
+
+	@Override
+	public void restart() {
+		Random random = new Random();
+		byte[] bytes = new byte[IMemoryBank.BANK_SIZE];
+
+		for (IMemoryBank bank : memory) {
+			if (!bank.isReadonly()) {
+				random.nextBytes(bytes);
+				//bank.setData(bytes);
+			}
+		}
+
+		initCpu();
 	}
 
 	public void writeMemoryShort16(short segment, short offset, short w) {
@@ -2343,14 +2352,6 @@ public class VM8086 implements IVirtualMachine {
 		return decodeTable[((int) instructionByte) & 0xFF];
 	}
 
-	public void run() {
-		running = true;
-
-		while (running) {
-			running = step();
-		}
-	}
-
 	public static final short VGA_ROM_F16[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7e, 0x81, 0xa5, 0x81, 0x81, 0xbd, 0x99, 0x81, 0x81, 0x7e, 0x00, 0x00,
 			0x00, 0x00, 0x00, 0x00, 0x7e, 0xff, 0xdb, 0xff, 0xff, 0xc3, 0xe7, 0xff, 0xff, 0x7e, 0x00, 0x00, 0x00, 0x00,
@@ -2597,7 +2598,7 @@ public class VM8086 implements IVirtualMachine {
 
 	@Override
 	public boolean step() {
-		//pit.onStep();
+		pit.onStep();
 
 		if (masterPic.peek() != null && (registers.FLAGS.intValue() & Registers8086.MASK_IF) != 0) {
 			InterruptRequest request = masterPic.consume();
@@ -2607,10 +2608,6 @@ public class VM8086 implements IVirtualMachine {
 
 		if (keyboardController != null && keyboardController.getKeyboard() != null) {
 			keyboardController.getKeyboard().handleKeystrokeQueue(this);
-		}
-
-		if (registers.IP.intValue() == 0x0BEB && registers.CS.intValue() == 0x9E58) {
-			//ipLogging = true;
 		}
 
 		Instruction currentInstruction = fetch();

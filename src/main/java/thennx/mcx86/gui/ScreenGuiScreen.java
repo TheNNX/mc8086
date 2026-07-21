@@ -16,18 +16,14 @@ import thennx.mcx86.packets.MCx86PacketHandler;
 import thennx.mcx86.screen.ScreenBlockEntity;
 import thennx.mcx86.screen.ScreenRenderer;
 
-public class ComputerGuiScreen extends Screen {
+public class ScreenGuiScreen extends Screen {
 	private final ScreenBlockEntity screenEntity;
 
-	protected void renderSignBackground(GuiGraphics p_281440_, BlockState p_282401_) {
-		ScreenRenderer.renderNoTranslate(p_281440_.pose(), p_281440_.bufferSource(), screenEntity);
-	}
-
-	public ComputerGuiScreen(ScreenBlockEntity p_277842_) {
+	public ScreenGuiScreen(ScreenBlockEntity p_277842_) {
 		this(p_277842_, Component.translatable("sign.edit"));
 	}
 
-	public ComputerGuiScreen(ScreenBlockEntity blockEntity, Component p_277393_) {
+	public ScreenGuiScreen(ScreenBlockEntity blockEntity, Component p_277393_) {
 		super(p_277393_);
 		this.screenEntity = blockEntity;
 	}
@@ -69,30 +65,11 @@ public class ComputerGuiScreen extends Screen {
 	}
 
 	@Override
-	public void render(GuiGraphics p_282418_, int p_281700_, int p_283040_, float p_282799_) {
+	public void render(GuiGraphics guiGraphics, int p_281700_, int p_283040_, float p_282799_) {
 		Lighting.setupForFlatItems();
-		this.renderBackground(p_282418_);
-		this.renderSign(p_282418_);
-		Lighting.setupFor3DItems();
-		super.render(p_282418_, p_281700_, p_283040_, p_282799_);
-	}
 
-	@Override
-	public void onClose() {
-		this.onDone();
-	}
+		this.renderBackground(guiGraphics);
 
-	@Override
-	public void removed() {
-		super.removed();
-	}
-
-	@Override
-	public boolean isPauseScreen() {
-		return false;
-	}
-
-	private void renderSign(GuiGraphics guiGraphics) {
 		BlockState blockstate = this.screenEntity.getBlockState();
 		PoseStack pose = guiGraphics.pose();
 		pose.pushPose();
@@ -114,9 +91,27 @@ public class ComputerGuiScreen extends Screen {
 		pose.scale(effectiveWidth, effectiveHeight, 1.0f);
 		pose.translate(-1.0f, -1.0f, 0);
 		pose.rotateAround(Axis.ZP.rotation(3.141592f), 1.0f, 1.0f, 0);
-		this.renderSignBackground(guiGraphics, blockstate);
+		ScreenRenderer.renderNoTranslate(pose, guiGraphics.bufferSource(), screenEntity);
 
 		pose.popPose();
+
+		Lighting.setupFor3DItems();
+		super.render(guiGraphics, p_281700_, p_283040_, p_282799_);
+	}
+
+	@Override
+	public void onClose() {
+		this.onDone();
+	}
+
+	@Override
+	public void removed() {
+		super.removed();
+	}
+
+	@Override
+	public boolean isPauseScreen() {
+		return false;
 	}
 
 	private void onDone() {

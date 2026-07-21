@@ -14,5 +14,6 @@ public abstract class AbstratcNodeBlockEntity extends BlockEntity implements INo
     public void onLoad() {
         assert level != null;
         getNode().detectNeighbours(level, getBlockPos());
+        super.onLoad();
     }
 }

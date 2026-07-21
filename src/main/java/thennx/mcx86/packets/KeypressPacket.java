@@ -75,10 +75,10 @@ public class KeypressPacket {
 
 				IPS2Keyboard keyboard = computerEntity.getKeyboard();
 
-				if (msg.key == 28) keyboard.queueKeystroke(msg.key, '\n', msg.pressed);
-				else if (msg.character > 255) {System.out.println("Weird key " +(int)msg.character ); msg.character = '?';}
+				if (msg.key == 28)
+					keyboard.queueKeystroke(msg.key, '\n', msg.pressed);
 				else
-				keyboard.queueKeystroke(msg.key, msg.character, msg.pressed);
+					keyboard.queueKeystroke(msg.key, msg.character, msg.pressed);
 			});
 		}
 		ctx.get().setPacketHandled(true);

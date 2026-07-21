@@ -1,29 +1,27 @@
 package thennx.vm8086.devices;
 
+import thennx.vm8086.IStateStorage;
+import thennx.vm8086.IVirtualMachine;
 import thennx.vm8086.VM8086;
 
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
+import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 
 public class DummyIdeDrive implements IBlockDevice {
-	private boolean logAccess = false;
-	private VM8086 vm;
-	private int zeroAccessed = 0;
+	private IVirtualMachine vm;
+	private boolean readonly = true;
+	private final Path imagePath;
 
-	public DummyIdeDrive(VM8086 vm, boolean logAccess) {
-		this.logAccess = logAccess;
+	public DummyIdeDrive(IVirtualMachine vm, Path imagePath, boolean readonly) {
 		this.vm = vm;
+		this.imagePath = imagePath;
+		this.readonly = readonly;
 	}
 
-	@Override
-	public boolean write(long lba, byte[] sectorData) {
-		return false;
-	}
-
-	@Override
-	public byte[] read(long lba) {
-		byte[] data = new byte[512];
+	public DummyIdeDrive(IVirtualMachine vm) {
+		this.vm = vm;
 
 		String[] tests = {
 				"C:\\Users\\Marcin\\Desktop\\oc86boot\\dos\\dos_2.vhd",
@@ -35,20 +33,37 @@ public class DummyIdeDrive implements IBlockDevice {
 				"C:\\Users\\Marcin\\Desktop\\oc86boot\\dos\\dos_1.vhd",
 		};
 
-		if (logAccess) {
-			System.out.printf("Sector %X\n", lba);
+		this.imagePath = Path.of(tests[3]);
+	}
+
+	@Override
+	public boolean write(long lba, byte[] sectorData) {
+		if (readonly) {
+			return false;
 		}
 
-		try (FileInputStream fs = new FileInputStream(tests[3])){
-			fs.skipNBytes(lba * 512);
-			fs.read(data);
-		} catch (FileNotFoundException e) {
-			e.printStackTrace();
-		} catch (IOException e1) {
-			e1.printStackTrace();
-		}
+        try (RandomAccessFile writer = new RandomAccessFile(imagePath.toFile(), "rw")){
+			writer.seek(lba * 512);
+			writer.write(sectorData);
+			return true;
+        }
+		catch (IOException e) {
+            return false;
+        }
+    }
 
-		return data;
+	@Override
+	public byte[] read(long lba) {
+		byte[] data = new byte[512];
+
+		try (RandomAccessFile reader = new RandomAccessFile(imagePath.toFile(), "r")){
+			reader.seek(lba * 512);
+			reader.read(data);
+		} catch (IOException e) {
+            return data;
+        }
+
+        return data;
 	}
 
 	@Override
@@ -58,7 +73,21 @@ public class DummyIdeDrive implements IBlockDevice {
 
 	@Override
 	public void saveCache() {
+
 	}
+
+	@Override
+	public void deleteImage() {
+		if (readonly) {
+			return;
+		}
+
+        try {
+            Files.deleteIfExists(imagePath);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
 	@Override
 	public boolean isRemovable() {
@@ -84,5 +113,4 @@ public class DummyIdeDrive implements IBlockDevice {
 	public long getTotalSectorCount() {
 		return getCylinders() * getHeadsPerCylinder() * getSectorsPerTrack();
 	}
-
 }

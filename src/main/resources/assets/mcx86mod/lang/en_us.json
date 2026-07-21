@@ -3,6 +3,16 @@
   "block.mcx86mod.computer_8086": "Basic x86 Case",
   "block.mcx86mod.screen": "Basic Screen",
   "item.mcx86mod.motherboard_8086": "Basic 8086 Motherboard",
-  "gui.mcx86mod.label.emulation_workers": "Number of emulation worker threads",
-  "gui.mcx86mod.label.emulation_quantum": "Emulation time quantum (in milliseconds)"
+  "item.mcx86mod.screwdriver": "Screwdriver",
+  "item.mcx86mod.video_card_cga": "CGA Video Adapter Card",
+  "item.mcx86mod.disk_controller_card": "Disk Controller Card",
+  "item.mcx86mod.redstone_card": "Redstone Card",
+  "item.mcx86mod.floppy_drive_8": "8\" Floppy Drive",
+  "item.mcx86mod.floppy_drive_514": "5.25\" Floppy Drive",
+  "item.mcx86mod.floppy_drive_35": "3.5\" Floppy Drive",
+  "item.mcx86mod.floppy_disk_8": "8\" Floppy Disk",
+  "item.mcx86mod.floppy_disk_514": "5.25\" Floppy Disk",
+  "item.mcx86mod.floppy_disk_35": "3.5\" Floppy Disk",
+  "gui.mcx86mod.label.emulation_workers": "Emulator threads",
+  "gui.mcx86mod.label.emulation_quantum": "Emulation quantum"
 }

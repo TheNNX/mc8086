@@ -10,7 +10,6 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.*;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockBehaviour;
@@ -18,14 +17,9 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraftforge.client.extensions.common.IClientBlockExtensions;
 import thennx.mcx86.congraph.AbstractNodeBlock;
-import thennx.mcx86.gui.ComputerGuiScreen;
-import thennx.mcx86.packets.DeviceStateUpdateRequest;
+import thennx.mcx86.gui.ScreenGuiScreen;
 import thennx.mcx86.packets.KeypressPacket;
-import thennx.mcx86.packets.MCx86PacketHandler;
-
-import java.util.function.Consumer;
 
 public class Screen extends AbstractNodeBlock {
 	public static final DirectionProperty FACING = HorizontalDirectionalBlock.FACING;
@@ -67,7 +61,7 @@ public class Screen extends AbstractNodeBlock {
 		BlockEntity blockEntity = level.getBlockEntity(blockPos);
 		if (blockEntity instanceof ScreenBlockEntity debugComputer) {
 			if (level.isClientSide && blockPos.distToCenterSqr(p_60506_.position()) < KeypressPacket.KEYPRESS_VALID_DISTSQUARE) {
-				Minecraft.getInstance().setScreen(new ComputerGuiScreen(debugComputer));
+				Minecraft.getInstance().setScreen(new ScreenGuiScreen(debugComputer));
 			}
 			return InteractionResult.SUCCESS;
 		}

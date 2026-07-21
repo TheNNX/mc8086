@@ -7,4 +7,6 @@ public interface IMemoryBank {
     void setByte(int offset, byte b);
     byte[] getData();
     void setData(byte[] data);
+
+    boolean isReadonly();
 }

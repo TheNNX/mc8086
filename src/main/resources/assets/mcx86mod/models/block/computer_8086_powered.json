@@ -1,6 +1,7 @@
 {
-  "parent": "mcx86mod:block/computer_8086_base",
+  "parent": "mcx86mod:block/computer_8086_front_light_base",
+  "render_type": "minecraft:cutout",
   "textures": {
-    "front": "mcx86mod:block/computer_8086_front_powered"
+    "0": "mcx86mod:block/computer_8086_front_powered"
   }
 }
