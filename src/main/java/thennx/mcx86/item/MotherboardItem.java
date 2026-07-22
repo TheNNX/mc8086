@@ -7,7 +7,9 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
+import thennx.mcx86.ComponentSlot;
 import thennx.mcx86.MCx86Mod;
+import thennx.mcx86.computer.ComputerBlockEntity;
 import thennx.vm8086.devices.IPortSpaceDevice;
 
 import java.util.List;
@@ -22,54 +24,6 @@ public class MotherboardItem extends Item {
         this.builtinCpu = builtinCpu;
     }
 
-    public static class CardSlot {
-        public final CardItem[] acceptedCards;
-        private ItemStack stack = ItemStack.EMPTY;
-        public IPortSpaceDevice device = null;
-
-        public CardSlot(CardItem[] acceptedCards) {
-            this.acceptedCards = acceptedCards;
-        }
-
-        public boolean isAccepted(Item item, int count) {
-            if (count != 1)
-                return false;
-
-            for (Item i : acceptedCards) {
-                if (item == i)
-                    return true;
-            }
-
-            return false;
-        }
-
-        public boolean isAccepted(ItemStack itemStack) {
-            return isAccepted(itemStack.getItem(), itemStack.getCount());
-        }
-
-        public ItemStack replaceItemStack(ItemStack stack) {
-            return replaceItemStack(stack, false);
-        }
-
-        public ItemStack replaceItemStack(ItemStack stack, boolean ignoreChecks) {
-            if (!isAccepted(stack) && !ignoreChecks) {
-                return null;
-            }
-
-            ItemStack old = this.stack;
-            this.stack = stack;
-            return old;
-        }
-
-        public ItemStack getItemStack() {
-            return this.stack;
-        }
-
-        public Item getItem() {
-            return this.stack.getItem();
-        }
-    }
-
     @Override
     public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> tooltip, TooltipFlag flag) {
         if (this.builtinCpu) {
@@ -78,16 +32,11 @@ public class MotherboardItem extends Item {
                             .withStyle(ChatFormatting.YELLOW)
                             .withStyle(ChatFormatting.ITALIC));
         }
+        tooltip.add(Component.translatable("tooltip." + MCx86Mod.MODID + ".has_isa_slots", maxCards).withStyle(ChatFormatting.GRAY));
         super.appendHoverText(stack, level, tooltip, flag);
     }
 
-    public CardSlot[] createCardSlots() {
-        CardSlot[] slots = new CardSlot[maxCards];
-
-        for (int i = 0; i < maxCards; i++) {
-            slots[i] = new CardSlot(CardItem.getCards());
-        }
-
-        return slots;
+    public int getMaxCards() {
+        return this.maxCards;
     }
 }

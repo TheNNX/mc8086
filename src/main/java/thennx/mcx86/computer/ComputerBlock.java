@@ -135,7 +135,7 @@ public class ComputerBlock extends AbstractNodeBlock {
             if (blockEntity instanceof ComputerBlockEntity computerBlockEntity) {
                 ItemStack stack = player.getItemInHand(hand);
 
-                if (computerBlockEntity.tryInsert(player, hand, stack))
+                if (computerBlockEntity.tryInsert(stack))
                     return InteractionResult.sidedSuccess(level.isClientSide);
 
                 if (!level.isClientSide()) {
@@ -178,5 +178,17 @@ public class ComputerBlock extends AbstractNodeBlock {
         }
 
         super.onRemove(p_60515_, level, pos, p_60518_, p_60519_);
+    }
+
+    public int getCaseMaxCardSlots() {
+        return 5;
+    }
+
+    public int getCaseMaxLongCardSlots() {
+        return 3;
+    }
+
+    public int getCaseBaySlots() {
+        return 2;
     }
 }

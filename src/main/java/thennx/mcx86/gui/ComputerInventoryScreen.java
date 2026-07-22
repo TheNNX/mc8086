@@ -4,15 +4,19 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
+import thennx.mcx86.MCx86Mod;
 
 public class ComputerInventoryScreen extends AbstractContainerScreen<ComputerInventoryMenu> {
-    public ComputerInventoryScreen(ComputerInventoryMenu p_97741_, Inventory playerInventory, Component p_97743_) {
-        super(p_97741_, playerInventory, p_97743_);
+    private final ResourceLocation BACKGROUND_LOCATION = new ResourceLocation(MCx86Mod.MODID, "textures/gui/container/computer_inventory.png");
+
+    public ComputerInventoryScreen(ComputerInventoryMenu menu, Inventory playerInventory, Component component) {
+        super(menu, playerInventory, component);
     }
 
     @Override
-    protected void renderBg(GuiGraphics guiGraphics, float p_97788_, int p_97789_, int p_97790_) {
+    protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
 
     }
 }

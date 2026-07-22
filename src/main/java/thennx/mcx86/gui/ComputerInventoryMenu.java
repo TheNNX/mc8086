@@ -1,23 +1,13 @@
 package thennx.mcx86.gui;
 
-import net.minecraft.client.gui.screens.inventory.MenuAccess;
-import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.chat.Component;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ContainerLevelAccess;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.items.ItemStackHandler;
-import net.minecraftforge.items.SlotItemHandler;
-import net.minecraftforge.network.NetworkHooks;
+import thennx.mcx86.ComponentSlot;
 import thennx.mcx86.MCx86Mod;
 import thennx.mcx86.computer.ComputerBlockEntity;
 
@@ -31,7 +21,7 @@ public class ComputerInventoryMenu extends AbstractContainerMenu {
         this.blockEntity = blockEntity;
         this.access = access;
 
-        createSlots(playerInventory, blockEntity.getInventoryHandler());
+        createSlots(playerInventory);
     }
 
     public ComputerInventoryMenu(int containerId, Inventory playerInventory, FriendlyByteBuf buf) {
@@ -40,17 +30,27 @@ public class ComputerInventoryMenu extends AbstractContainerMenu {
         this.blockEntity = blockEntity;
         this.access = ContainerLevelAccess.NULL;
 
-        createSlots(playerInventory, blockEntity.getInventoryHandler());
+        createSlots(playerInventory);
     }
 
-    private void createSlots(Inventory playerInventory, IItemHandler dataInventory) {
-        for (int i = 0; i < dataInventory.getSlots(); i++) {
-            this.addSlot(new SlotItemHandler(dataInventory, 0, 0, 0));
+    private void createSlots(Inventory playerInventory) {
+        this.slots.clear();
+        int slotArrayNum = 0;
+
+        for (ComponentSlot[] slotArray : blockEntity.getSlotArrays()) {
+            int slotNum = 0;
+
+            for (ComponentSlot slot : slotArray) {
+                this.addSlot(slot.createItemHandler(slotArrayNum, slotNum));
+                slotNum++;
+            }
+
+            slotArrayNum++;
         }
 
         for (int i = 0; i < 4; i++) {
             for (int j = 0; j < 9; j++) {
-                this.addSlot(new Slot(playerInventory, i * 9 + j, 18 * j, 18 * i));
+                this.addSlot(new Slot(playerInventory, i * 9 + j, 18 * j, 18 * (4 - i) + 18 * 4));
             }
         }
     }

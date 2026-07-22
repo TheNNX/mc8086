@@ -10,7 +10,7 @@ public class PS2Keyboard implements IPS2Keyboard {
 	private IKeyboardController controller = null;
 
 	public PS2Keyboard() {
-		restoreDefaultParameters();
+		initialise();
 	}
 
 	private PS2Mode mode = PS2Mode.Mode1;
@@ -46,7 +46,8 @@ public class PS2Keyboard implements IPS2Keyboard {
 
 	private State state = State.normal;
 
-	private void restoreDefaultParameters() {
+	@Override
+	public void initialise() {
 		state = State.normal;
 		ledStates = 0;
 		scanningEnabled = true;
@@ -92,14 +93,14 @@ public class PS2Keyboard implements IPS2Keyboard {
 				sendToController(ACK);
 				break;
 			case 0xF6:
-				restoreDefaultParameters();
+				initialise();
 				sendToController(ACK);
 				break;
 			case 0xFE:
 				sendToController(lastSentByte);
 				break;
 			case 0xFF:
-				restoreDefaultParameters();
+				initialise();
 				sendToController(TEST_PASSED);
 				break;
 			default:

@@ -8,22 +8,22 @@ import thennx.vm8086.IStateStorage;
 public class BarebonesATAChannel implements IPortSpaceDevice, IStateful, IInterruptSource {
 	private final short basePort;
 	private final short controlPort;
-	private boolean slaveSelected = false;
-	private byte headsOrLba28High4 = 0;
-	private boolean usingLba = false;
-	private byte errorByte = 0;
-	private int secCount = 0;
-	private boolean irqEnabled = false;
-	private long lba = 0;
-	private boolean deviceBusy = false;
-	private boolean deviceReady = true;
-	private boolean deviceFault = false;
-	private boolean deviceSeekComplete = true;
-	private boolean dataRequest = false;
-	private boolean errorFlag = false;
-	private boolean irqPending = false;
-	private boolean writeInProgress = false;
-	private int waitingForBytesOfDataIn = 0;
+	private boolean slaveSelected;
+	private byte headsOrLba28High4;
+	private boolean usingLba;
+	private byte errorByte;
+	private int secCount;
+	private boolean irqEnabled;
+	private long lba;
+	private boolean deviceBusy;
+	private boolean deviceReady;
+	private boolean deviceFault;
+	private boolean deviceSeekComplete;
+	private boolean dataRequest;
+	private boolean errorFlag;
+	private boolean irqPending;
+	private boolean writeInProgress;
+	private int waitingForBytesOfDataIn;
 
 	private final LinkedList<Byte> dataInQueue = new LinkedList<>();
 	private final LinkedList<Byte> dataOutQueue = new LinkedList<>();
@@ -37,6 +37,29 @@ public class BarebonesATAChannel implements IPortSpaceDevice, IStateful, IInterr
 	public BarebonesATAChannel(short basePort, short controlPort) {
 		this.basePort = basePort;
 		this.controlPort = controlPort;
+		initialise();
+	}
+
+	@Override
+	public void initialise() {
+		this.slaveSelected = false;
+		this.headsOrLba28High4 = 0;
+		this.usingLba = false;
+		this.secCount = 0;
+		this.errorByte = 0;
+		this.irqEnabled = true;
+		this.lba = 0;
+		this.deviceBusy = false;
+		this.deviceReady = true;
+		this.deviceFault = false;
+		this.deviceSeekComplete = true;
+		this.dataRequest = false;
+		this.errorFlag = false;
+		this.irqPending = false;
+		this.writeInProgress = false;
+		this.waitingForBytesOfDataIn = 0;
+		this.dataInQueue.clear();
+		this.dataOutQueue.clear();
 	}
 
 	private void receiveData(byte data) {

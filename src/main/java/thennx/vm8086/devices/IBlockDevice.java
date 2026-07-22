@@ -1,6 +1,6 @@
 package thennx.vm8086.devices;
 
-public interface IBlockDevice {
+public interface IBlockDevice extends IDevice {
 	boolean write(long lba, byte[] sectorData);
 
 	byte[] read(long lba);

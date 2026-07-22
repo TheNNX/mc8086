@@ -1,6 +1,9 @@
 package thennx.vm8086.devices;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedList;
 
 import thennx.vm8086.IStateStorage;
@@ -13,20 +16,30 @@ import thennx.vm8086.VM8086;
 public class SimplifiedKeyboardController implements IPortSpaceDevice, IKeyboardController, IInterruptSource, IStateful {
 
 	IPS2Keyboard keyboard = null;
-
 	private static ArrayList<SimplifiedKeyboardController> controlers = new ArrayList<>();
-
 	private InterruptRequest currentRequest = null;
+	private VM8086 vm;
 
-	public void setKeyboard(IPS2Keyboard keyboard) {
-		this.keyboard = keyboard;
-		if (this.keyboard.getKeyboardController() != this)
-			this.keyboard.connectKeyboardController(this);
-	}
+	private boolean outputBufferFull;
+	private boolean controllerInputBufferFull;
+	private boolean commandDataFlag;
+	private boolean parityError;
+	private boolean timeoutError;
+	private boolean firmwareFlag;
+	private byte dataOut;
+	private boolean systemReset;
+	private boolean deviceIrqPending;
+	private byte lastCommand;
+	private boolean waitingForRamData;
+	private boolean waitingForCOPData;
+	private byte[] internalRam;
+	private boolean firstPs2PortEnabled;
+	LinkedList<Byte> deviceQueuedBytes = new LinkedList<>();
 
 	public SimplifiedKeyboardController(VM8086 vm) {
 		this.vm = vm;
 		controlers.add(this);
+		this.initialise();
 	}
 
 	@Override
@@ -34,7 +47,11 @@ public class SimplifiedKeyboardController implements IPortSpaceDevice, IKeyboard
 		return (port == 0x60) || (port == 0x64);
 	}
 
-	private VM8086 vm;
+	public void setKeyboard(IPS2Keyboard keyboard) {
+		this.keyboard = keyboard;
+		if (this.keyboard.getKeyboardController() != this)
+			this.keyboard.connectKeyboardController(this);
+	}
 
 	public byte getStatus() {
 		int result = 0;
@@ -56,13 +73,60 @@ public class SimplifiedKeyboardController implements IPortSpaceDevice, IKeyboard
 	}
 
 	@Override
-	public void load(IStateStorage stateStorage) {
+	public void load(IStateStorage stateStorage) throws IOException {
+		outputBufferFull = stateStorage.getBoolean("outputBufferFull").orElse(outputBufferFull);
+		controllerInputBufferFull = stateStorage.getBoolean("controllerInputBufferFull").orElse(controllerInputBufferFull);
+		commandDataFlag = stateStorage.getBoolean("commandDataFlag").orElse(commandDataFlag);
+		parityError = stateStorage.getBoolean("parityError").orElse(parityError);
+		timeoutError = stateStorage.getBoolean("timeoutError").orElse(timeoutError);
+		firmwareFlag = stateStorage.getBoolean("firmwareFlag").orElse(firmwareFlag);
+		dataOut = stateStorage.getByte("dataOut").orElse(dataOut);
+		systemReset = stateStorage.getBoolean("systemReset").orElse(systemReset);
+		deviceIrqPending = stateStorage.getBoolean("deviceIrqPending").orElse(deviceIrqPending);
+		lastCommand = stateStorage.getByte("lastCommand").orElse(lastCommand);
+		waitingForCOPData = stateStorage.getBoolean("waitingForCOPData").orElse(deviceIrqPending);
+		waitingForRamData = stateStorage.getBoolean("waitingForRamData").orElse(deviceIrqPending);
+		firstPs2PortEnabled = stateStorage.getBoolean("firstPs2PortEnabled").orElse(firstPs2PortEnabled);
 
+		boolean hasInterruptRequest = stateStorage.getBoolean("hasInterruptRequest").orElse(false);
+		if (hasInterruptRequest) {
+			this.currentRequest = new InterruptRequest(this);
+		}
+
+		for (int i = 0; i < internalRam.length; i++) {
+			internalRam[i] = stateStorage.getByte("ram" + i).orElse(internalRam[i]);
+		}
+
+		deviceQueuedBytes.clear();
+		while (stateStorage.containsByte("queuedByte" + deviceQueuedBytes.size())) {
+			deviceQueuedBytes.add(stateStorage.getByte("queuedByte" + deviceQueuedBytes.size()).get());
+		}
 	}
 
 	@Override
-	public void save(IStateStorage stateStorage) {
+	public void save(IStateStorage stateStorage) throws IOException {
+		stateStorage.set("outputBufferFull", outputBufferFull);
+		stateStorage.set("controllerInputBufferFull", controllerInputBufferFull);
+		stateStorage.set("commandDataFlag", commandDataFlag);
+		stateStorage.set("parityError", parityError);
+		stateStorage.set("timeoutError", timeoutError);
+		stateStorage.set("firmwareFlag", firmwareFlag);
+		stateStorage.set("dataOut", dataOut);
+		stateStorage.set("systemReset", systemReset);
+		stateStorage.set("deviceIrqPending", deviceIrqPending);
+		stateStorage.set("lastCommand", lastCommand);
+		stateStorage.set("waitingForCOPData", deviceIrqPending);
+		stateStorage.set("waitingForRamData", deviceIrqPending);
+		stateStorage.set("firstPs2PortEnabled", firstPs2PortEnabled);
+		stateStorage.set("hasInterruptRequest", currentRequest != null);
 
+		for (int i = 0; i < internalRam.length; i++) {
+			stateStorage.set("ram" + i, internalRam[i]);
+		}
+
+		for (int i = 0; i < deviceQueuedBytes.size(); i++) {
+			stateStorage.set("queuedByte" + i, deviceQueuedBytes.get(i));
+		}
 	}
 
 	@Override
@@ -70,21 +134,25 @@ public class SimplifiedKeyboardController implements IPortSpaceDevice, IKeyboard
 
 	}
 
-	private boolean outputBufferFull = false;
-	private boolean controllerInputBufferFull = false;
-	private boolean commandDataFlag = true;
-	private boolean parityError = false;
-	private boolean timeoutError = false;
-	private boolean firmwareFlag = true;
-	private byte dataOut;
-	private boolean systemReset = true;
-	private boolean deviceIrqPending = false;
-	private byte lastCommand = 0;
-	private boolean waitingForRamData = false;
-	private boolean waitingForCOPData = false;
-	private byte[] internalRam = new byte[32];
-	private boolean firstPs2PortEnabled = true;
-	LinkedList<Byte> deviceQueuedBytes = new LinkedList<>();
+	@Override
+	public void initialise() {
+		outputBufferFull = false;
+		controllerInputBufferFull = false;
+		commandDataFlag = true;
+		parityError = false;
+		timeoutError = false;
+		firmwareFlag = true;
+		dataOut = 0;
+		systemReset = true;
+		deviceIrqPending = false;
+		lastCommand = 0;
+		waitingForRamData = false;
+		waitingForCOPData = false;
+		internalRam = new byte[32];
+		firstPs2PortEnabled = true;
+		currentRequest = null;
+		deviceQueuedBytes.clear();
+	}
 
 	private void writeToCommandRegister(byte dataByte) {
 		/* cast to int to avoid casting later */

@@ -296,26 +296,17 @@ public class ComputerBlockEntity extends AbstratcNodeBlockEntity {
 		return !inventoryHandler.getMotherboard().isEmpty();
 	}
 
-	public boolean tryInsert(Player player, InteractionHand hand, ItemStack stack) {
-		if (stack.getItem() instanceof MotherboardItem) {
-			return inventoryHandler.replaceMotherboard(stack);
-		}
-		else if (stack.getItem() instanceof CardItem) {
-			return inventoryHandler.insertCard(stack);
-		}
-		else if (stack.getItem() instanceof BayItem bayItem) {
-			return inventoryHandler.insertBayItem(stack);
-		}
-		return false;
+	public boolean tryInsert(ItemStack stack) {
+		return inventoryHandler.insertItem(stack);
 	}
 
-	void addDevice(IPortSpaceDevice device) {
-		if (device != null)
+	public void addDevice(IPortSpaceDevice device) {
+		if (device != null && getVM() != null)
 			getVM().tryAddDevice(device);
 	}
 
-	void removeDevice(IPortSpaceDevice device) {
-		if (device != null)
+	public void removeDevice(IPortSpaceDevice device) {
+		if (device != null && getVM() != null)
 			getVM().tryRemoveDevice(device);
 	}
 
@@ -323,23 +314,35 @@ public class ComputerBlockEntity extends AbstratcNodeBlockEntity {
 		return inventoryHandler.getBayItems();
 	}
 
-	void onBayItemAdded(ItemStack stack) {
-		Item item = stack.getItem();
-
-		if (item instanceof IDeviceFactory deviceFactory) {
-			addDevice(deviceFactory.createDevice(this));
-		}
-	}
-
 	public ItemStack getMotherboard() {
 		return inventoryHandler.getMotherboard();
 	}
 
-	public IItemHandler getInventoryHandler() {
-		return this.inventoryHandler;
-	}
-
 	public ItemStack[] getCards() {
 		return this.inventoryHandler.getCards();
+	}
+
+	public ComponentSlot[][] getSlotArrays() {
+		return this.inventoryHandler.getSlotArrayMap().values().toArray(new ComponentSlot[0][]);
+	}
+
+	private ComputerBlock getBlock() {
+		return (ComputerBlock) getBlockState().getBlock();
+	}
+
+	public int getCardSlots() {
+		return getBlock().getCaseMaxCardSlots();
+	}
+
+	public int getBaySlots() {
+		return getBlock().getCaseBaySlots();
+	}
+
+	public boolean isCardSlotLong(int i) {
+		return i < getBlock().getCaseMaxLongCardSlots();
+	}
+
+	public ComputerBlockEntityInventoryHandler getInventoryHandler() {
+		return inventoryHandler;
 	}
 }

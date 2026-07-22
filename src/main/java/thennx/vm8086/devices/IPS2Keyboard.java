@@ -2,7 +2,7 @@ package thennx.vm8086.devices;
 
 import thennx.vm8086.VM8086;
 
-public interface IPS2Keyboard {
+public interface IPS2Keyboard extends IDevice {
 
 	void writeToDevice(byte data);
 

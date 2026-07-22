@@ -174,11 +174,14 @@ public class VM8086 implements IVirtualMachine {
 		for (IMemoryBank bank : memory) {
 			if (!bank.isReadonly()) {
 				random.nextBytes(bytes);
-				//bank.setData(bytes);
+				bank.setData(bytes);
 			}
 		}
 
 		initCpu();
+		for (IPortSpaceDevice device : portSpaceDevices) {
+			device.initialise();
+		}
 	}
 
 	public void writeMemoryShort16(short segment, short offset, short w) {
