@@ -42,6 +42,7 @@ public class ComputerBlockEntity extends AbstratcNodeBlockEntity {
 	private Node<ComputerBlockEntity> node = new Node<>(this);
 	private final ComputerBlockEntityInventoryHandler inventoryHandler = new ComputerBlockEntityInventoryHandler(this);
 	public int redstoneCardNumber = 0;
+	private String customName = null;
 
 	public ComputerBlockEntity(BlockPos pos, BlockState state) {
 		super(MCx86Mod.COMPUTER_BLOCK_ENTITY.get(), pos, state);
@@ -357,5 +358,12 @@ public class ComputerBlockEntity extends AbstratcNodeBlockEntity {
 
 	public boolean hasRedstoneCards() {
 		return redstoneCardNumber > 0;
+	}
+
+	public String getName() {
+		if (customName != null) {
+			return customName;
+		}
+		return "Computer";
 	}
 }

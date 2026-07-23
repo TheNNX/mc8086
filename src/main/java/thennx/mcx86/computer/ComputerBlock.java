@@ -111,7 +111,7 @@ public class ComputerBlock extends AbstractNodeBlock {
 
             @Override
             public Component getDisplayName() {
-                return Component.literal("TODO");
+                return Component.literal(blockEntity.getName());
             }
 
             @Override
@@ -183,7 +183,7 @@ public class ComputerBlock extends AbstractNodeBlock {
     @Override
     public boolean canConnectRedstone(BlockState state, BlockGetter level, BlockPos pos, @Nullable Direction direction) {
         if (((ComputerBlockEntity) level.getBlockEntity(pos)).hasRedstoneCards())
-            return direction == state.getValue(DIRECTION_PROPERTY).getOpposite();
+            return direction == state.getValue(DIRECTION_PROPERTY);
         return false;
     }
 
