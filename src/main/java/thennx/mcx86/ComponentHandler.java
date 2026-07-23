@@ -174,6 +174,8 @@ public abstract class ComponentHandler implements IItemHandler, IItemHandlerModi
 
                 @Override
                 public int getOverlayIconIndex() {
+                    if (!isLong)
+                        return 7;
                     return 6;
                 }
             }
