@@ -10,6 +10,7 @@ import thennx.vm8086.devices.IPortSpaceDevice;
 
 import javax.annotation.Nullable;
 import java.util.List;
+import java.util.Map;
 
 public class DiskControllerCardItem extends CardItem {
     public DiskControllerCardItem() {
@@ -19,24 +20,17 @@ public class DiskControllerCardItem extends CardItem {
     @Override
     public @Nullable DeviceInstance createDevice(ItemStack stack, ComputerBlockEntity blockEntity) {
         IVirtualMachine vm = blockEntity.getVM();
-        List<IDevice> deviceList = vm.getDevices();
-
-        int numATAChannels = 0;
-        for (IDevice device : deviceList) {
-            if (device instanceof ATAChannel) {
-                numATAChannels++;
-            }
-        }
+        Map<String, ATAChannel> existingChannels = vm.getDevices(ATAChannel.class);
 
         ATAChannel channel;
 
-        if (numATAChannels > 2)
+        if (existingChannels.size() > 2)
             return null;
-        if (numATAChannels == 1)
+        if (existingChannels.size() == 1)
             channel = new ATAChannel((short) 0x170, (short) 0x376);
         else
             channel = new ATAChannel((short) 0x1F0, (short) 0x3F6);
 
-        return new DeviceInstance("ataChannel" + numATAChannels, channel);
+        return new DeviceInstance("ataChannel" + existingChannels.size(), channel);
     }
 }

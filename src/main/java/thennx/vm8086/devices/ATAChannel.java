@@ -2,10 +2,12 @@ package thennx.vm8086.devices;
 
 import java.io.IOException;
 import java.util.LinkedList;
+import java.util.Objects;
 
 import thennx.vm8086.IStateStorage;
 
 public class ATAChannel implements IPortSpaceDevice, IStateful, IInterruptSource {
+	public static final int MAX_DRIVES = 2;
 	private final short basePort;
 	private final short controlPort;
 	private boolean slaveSelected;
@@ -27,7 +29,8 @@ public class ATAChannel implements IPortSpaceDevice, IStateful, IInterruptSource
 	private final LinkedList<Byte> dataInQueue = new LinkedList<>();
 	private final LinkedList<Byte> dataOutQueue = new LinkedList<>();
 
-	private final IBlockDevice[] drives = new IBlockDevice[2];
+	private final IBlockDevice[] drives = new IBlockDevice[MAX_DRIVES];
+	private final String[] driveKeys = new String[MAX_DRIVES];
 
 	public ATAChannel(short basePort, short controlPort) {
 		this.basePort = basePort;
@@ -101,7 +104,7 @@ public class ATAChannel implements IPortSpaceDevice, IStateful, IInterruptSource
 		for (int i = 23; i <= 48; i++)
 			enqueueDataOutWord((short) 0);
 		/* lba supported */
-		enqueueDataOutWord((short) 512);
+		enqueueDataOutWord((short) selectedDevice.getBytesPerSector());
 		enqueueDataOutWord((short) 0);
 		enqueueDataOutWord((short) 2);
 		enqueueDataOutWord((short) 0);
@@ -245,7 +248,7 @@ public class ATAChannel implements IPortSpaceDevice, IStateful, IInterruptSource
 
 	private void writeSectors() {
 		dataRequest = true;
-		waitingForBytesOfDataIn = secCount * 512;
+		waitingForBytesOfDataIn = secCount * getSelectedDevice().getBytesPerSector();
 		writeInProgress = true;
 		processDataRequestStatus();
 	}
@@ -257,8 +260,8 @@ public class ATAChannel implements IPortSpaceDevice, IStateful, IInterruptSource
 			if (writeInProgress) {
 				long effectiveLba = getEffectiveLbaForNormalIo();
 				for (int i = 0; i < secCount; i++) {
-					byte[] currentSec = new byte[512];
-					for (int j = 0; j < 512; j++)
+					byte[] currentSec = new byte[selectedBlockDevice.getBytesPerSector()];
+					for (int j = 0; j < currentSec.length; j++)
 						currentSec[j] = dataInQueue.removeFirst();
 					boolean success = selectedBlockDevice.write(effectiveLba, currentSec);
 					if (!success) {
@@ -389,11 +392,8 @@ public class ATAChannel implements IPortSpaceDevice, IStateful, IInterruptSource
 		stateStorage.set("writeInProgress", writeInProgress);
 		stateStorage.set("waitingForBytesOfDataIn", waitingForBytesOfDataIn);
 
-		for (IBlockDevice drive : drives) {
-			if (drive instanceof IStateful stateful) {
-				stateful.save(stateStorage);
-			}
-		}
+		stateStorage.set("drive0", Objects.requireNonNullElse(driveKeys[0], ""));
+		stateStorage.set("drive1", Objects.requireNonNullElse(driveKeys[1], ""));
 	}
 
 	@Override
@@ -414,37 +414,33 @@ public class ATAChannel implements IPortSpaceDevice, IStateful, IInterruptSource
 		writeInProgress = stateStorage.getBoolean("writeInProgress").orElse(writeInProgress);
 		waitingForBytesOfDataIn = stateStorage.getInt("waitingForBytesOfDataIn").orElse(waitingForBytesOfDataIn);
 
-		for (IBlockDevice drive : drives) {
-			if (drive instanceof IStateful stateful) {
-				stateful.load(stateStorage);
-			}
-		}
+		driveKeys[0] = stateStorage.getString("drive0").orElse("");
+		driveKeys[1] = stateStorage.getString("drive1").orElse("");
 	}
 
 	@Override
 	public void deleteSaved(IStateStorage stateStorage) throws IOException {
-		for (IBlockDevice drive : drives) {
-			if (drive != null) {
-				drive.deleteImage();
-			}
-			if (drive instanceof IStateful stateful) {
-				stateful.deleteSaved(stateStorage);
-			}
-		}
 	}
 
-	public void setBlockDevice(IBlockDevice device, int number) {
+	public void setBlockDevice(int number, IBlockDevice device, String key) {
 		this.drives[number] = device;
+		this.driveKeys[number] = key;
 	}
 
 	public IBlockDevice getBlockDevice(int i) {
 		return this.drives[i];
 	}
 
-	public boolean addBlockDevice(IBlockDevice blockDevice, int i) {
-		if (getBlockDevice(i) == null) {
-			setBlockDevice(blockDevice, i);
-			return true;
+	public String getDriveKey(int i) {
+		return driveKeys[i];
+	}
+
+	public boolean addBlockDevice(IBlockDevice blockDevice, String key) {
+		for (int i = 0; i < drives.length; i++) {
+			if (getBlockDevice(i) == null) {
+				setBlockDevice(i, blockDevice, key);
+				return true;
+			}
 		}
 
 		return false;

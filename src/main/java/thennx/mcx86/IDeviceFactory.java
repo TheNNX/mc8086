@@ -13,7 +13,7 @@ public interface IDeviceFactory {
     class DeviceInstance {
         private final String name;
         private final IDevice device;
-        public int providerSlot = -1;
+        public String providerSlot = null;
 
         public DeviceInstance(String name, IDevice device) {
             this.name = name;

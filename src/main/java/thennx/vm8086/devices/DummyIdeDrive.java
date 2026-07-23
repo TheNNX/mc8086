@@ -6,13 +6,13 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 public class DummyIdeDrive implements IBlockDevice {
 	private IVirtualMachine vm;
 	private boolean readonly = true;
 	private IPathProvider imagePathProvider;
 	private ATAChannel channel = null;
-	private int channelIndex = 0;
 
 	private final int cylinders;
 	private final int heads;
@@ -94,30 +94,45 @@ public class DummyIdeDrive implements IBlockDevice {
 	}
 
 	@Override
-	public boolean onAdded(IVirtualMachine machine) {
-		List<ATAChannel> channels = vm.getDevices(ATAChannel.class);
+	public boolean onAdded(IVirtualMachine machine, String key) {
+		Map<String, ATAChannel> channels = vm.getDevices(ATAChannel.class);
 
-		for (ATAChannel channel : channels) {
-			for (int i = 0; i < 2; i++) {
-				if (channel.addBlockDevice(this, i)) {
-					this.channel = channel;
-					this.channelIndex = i;
-					return IBlockDevice.super.onAdded(machine);
-				}
+		for (ATAChannel channel : channels.values()) {
+			if (channel.addBlockDevice(this, key)) {
+				this.channel = channel;
+				return true;
 			}
 		}
 
-		return false;
+		return true;
 	}
 
 	@Override
-	public void onRemoved(IVirtualMachine machine) {
-		if (this.channel != null) {
-			assert this.channel.getBlockDevice(channelIndex) == this;
-
-			this.channel.setBlockDevice(null, channelIndex);
+	public void onOtherAdded(IVirtualMachine machine, String selfKey, String addedKey, IDevice added) {
+		if (this.channel == null && added instanceof ATAChannel ataChannel) {
+			ataChannel.addBlockDevice(this, selfKey);
 		}
-		IBlockDevice.super.onRemoved(machine);
+		IBlockDevice.super.onOtherAdded(machine, selfKey, addedKey, added);
+	}
+
+	@Override
+	public void onOtherRemoved(IVirtualMachine machine, String selfKey, String removedKey, IDevice removed) {
+		if (channel == removed) {
+			this.channel = null;
+		}
+		IBlockDevice.super.onOtherRemoved(machine, selfKey, removedKey, removed);
+	}
+
+	@Override
+	public void onRemoved(IVirtualMachine machine, String selfKey) {
+		if (this.channel != null) {
+			for (int i = 0; i < ATAChannel.MAX_DRIVES; i++) {
+				if (channel.getBlockDevice(i) == this) {
+					channel.setBlockDevice(i, null, null);
+				}
+			}
+		}
+		IBlockDevice.super.onRemoved(machine, selfKey);
 	}
 
 	@Override

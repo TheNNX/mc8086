@@ -151,17 +151,20 @@ public class VM8086 implements IVirtualMachine {
 	}
 
 	@Override
-	public List<IDevice> getDevices() {
-		return Collections.unmodifiableList(devices.values().stream().toList());
+	public Map<String, IDevice> getDevices() {
+		return Collections.unmodifiableMap(devices);
 	}
 
 	@Override
-	public <T extends IDevice> List<T> getDevices(Class<T> clazz) {
-		List<T> result = new ArrayList<>();
+	public <T extends IDevice> Map<String, T> getDevices(Class<T> clazz) {
+		Map<String, T> result = new HashMap<>();
+		Map<String, IDevice> devices = getDevices();
 
-		for (IDevice device : getDevices()) {
+		for (String key : devices.keySet()) {
+			IDevice device = devices.get(key);
+
 			if (device.getClass() == clazz) {
-				result.add((T) device);
+				result.put(key, (T) device);
 			}
 		}
 
@@ -184,9 +187,14 @@ public class VM8086 implements IVirtualMachine {
 			statefulDevices.put(key, stateful);
 		}
 
-		if (!device.onAdded(this)) {
+		if (!device.onAdded(this, key)) {
 			tryRemoveDevice(key);
 			return false;
+		}
+
+		for (String otherKey : devices.keySet()) {
+			IDevice other = devices.get(otherKey);
+			other.onOtherAdded(this, otherKey, key, device);
 		}
 
 		return true;
@@ -213,7 +221,13 @@ public class VM8086 implements IVirtualMachine {
 			statefulDevices.remove(key);
 		}
 
-		device.onRemoved(this);
+		device.onRemoved(this, key);
+
+		for (String otherKey : devices.keySet()) {
+			IDevice other = devices.get(otherKey);
+			other.onOtherRemoved(this, otherKey, key, device);
+		}
+
 		return device;
 	}
 

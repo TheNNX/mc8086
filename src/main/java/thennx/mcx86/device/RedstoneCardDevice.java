@@ -29,14 +29,14 @@ public class RedstoneCardDevice implements IPortSpaceDevice {
     }
 
     @Override
-    public boolean onAdded(IVirtualMachine machine) {
+    public boolean onAdded(IVirtualMachine machine, String key) {
         blockEntity.redstoneCardNumber++;
-        return IPortSpaceDevice.super.onAdded(machine);
+        return IPortSpaceDevice.super.onAdded(machine, key);
     }
 
     @Override
-    public void onRemoved(IVirtualMachine machine) {
+    public void onRemoved(IVirtualMachine machine, String key) {
         blockEntity.redstoneCardNumber--;
-        IPortSpaceDevice.super.onRemoved(machine);
+        IPortSpaceDevice.super.onRemoved(machine, key);
     }
 }

@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 import net.minecraft.client.Minecraft;
@@ -16,6 +17,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.LevelResource;
 import thennx.mcx86.*;
+import thennx.mcx86.item.AbstractComponentItem;
 import thennx.mcx86.pool.PoolManager;
 import thennx.mcx86.screen.ScreenBlockEntity;
 import thennx.mcx86.congraph.AbstratcNodeBlockEntity;
@@ -264,6 +266,7 @@ public class ComputerBlockEntity extends AbstratcNodeBlockEntity {
         shutdownVm(false);
 
         try {
+			prepareDirectories();
             this.virtualMachine.deleteSaved(new FileMemoryStorage(savePath));
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -305,14 +308,15 @@ public class ComputerBlockEntity extends AbstratcNodeBlockEntity {
 
 	public boolean addDevice(IDeviceFactory.DeviceInstance deviceInstance) {
 		if (deviceInstance != null && getVM() != null) {
-			return getVM().tryAddDevice(deviceInstance.getName(), deviceInstance.getDevice());
-		}
+            return getVM().tryAddDevice(deviceInstance.getName(), deviceInstance.getDevice());
+        }
 		return false;
 	}
 
 	public void removeDevice(IDeviceFactory.DeviceInstance deviceInstance) {
-		if (deviceInstance != null && getVM() != null)
+		if (deviceInstance != null && getVM() != null) {
 			getVM().tryRemoveDevice(deviceInstance.getName());
+		}
 	}
 
 	public ItemStack[] getBayItems() {

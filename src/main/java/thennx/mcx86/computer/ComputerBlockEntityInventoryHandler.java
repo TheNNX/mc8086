@@ -38,6 +38,17 @@ public class ComputerBlockEntityInventoryHandler implements INBTSerializable<Com
                 new SlotArray(cardSlots, "card"));
     }
 
+    public ComponentHandler getSlotByName(String providerSlot) {
+        for (SlotArray slotArray : getSlotArrays()) {
+            if (providerSlot.startsWith(slotArray.name)) {
+                int index = Integer.parseInt(providerSlot.substring(slotArray.name.length()));
+                return slotArray.array[index];
+            }
+        }
+
+        return null;
+    }
+
     public ComputerBlockEntityInventoryHandler(ComputerBlockEntity blockEntity) {
         this.blockEntity = blockEntity;
         this.removableMedia = new ComponentHandler[0];
@@ -45,7 +56,7 @@ public class ComputerBlockEntityInventoryHandler implements INBTSerializable<Com
         createBaySlots();
         createCardSlots();
 
-        this.motherboard = new ComponentHandler(blockEntity, 1) {
+        this.motherboard = new ComponentHandler(blockEntity, 1, "motherboard") {
             @Override
             public boolean isAccepted(Item item, int count) {
                 return item instanceof MotherboardItem;
@@ -76,14 +87,14 @@ public class ComputerBlockEntityInventoryHandler implements INBTSerializable<Com
     private void createCardSlots() {
         this.cardSlots = new CardHandler[blockEntity.getCardSlots()];
         for (int i = 0; i < this.cardSlots.length; i++) {
-            this.cardSlots[i] = new CardHandler(blockEntity, blockEntity.isCardSlotLong(i), i);
+            this.cardSlots[i] = new CardHandler(blockEntity, blockEntity.isCardSlotLong(i), i, "card" + i);
         }
     }
 
     private void createBaySlots() {
         this.baySlots = new BayHandler[blockEntity.getBaySlots()];
         for (int i = 0; i < this.baySlots.length; i++) {
-            this.baySlots[i] = new BayHandler(blockEntity);
+            this.baySlots[i] = new BayHandler(blockEntity, "bay" + i);
         }
     }
 
@@ -139,9 +150,6 @@ public class ComputerBlockEntityInventoryHandler implements INBTSerializable<Com
                 if (i >= maxCards) {
                     Block.popResource(blockEntity.getLevel(), blockEntity.getBlockPos(), slot.getItemStack());
                     slot.setStackInSlot(0, ItemStack.EMPTY);
-                    if (slot.deviceInstance != null) {
-                        blockEntity.removeDevice(slot.deviceInstance);
-                    }
                 }
             }
         }

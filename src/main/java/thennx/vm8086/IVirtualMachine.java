@@ -6,6 +6,7 @@ import thennx.vm8086.devices.IStateful;
 
 import javax.annotation.Nullable;
 import java.util.List;
+import java.util.Map;
 
 public interface IVirtualMachine extends IStateful {
     boolean step();
@@ -34,9 +35,9 @@ public interface IVirtualMachine extends IStateful {
 
     long getFrequencyHz();
 
-    List<IDevice> getDevices();
+    Map<String, IDevice> getDevices();
 
-    <T extends IDevice> List<T> getDevices(Class<T> clazz);
+    <T extends IDevice> Map<String, T> getDevices(Class<T> clazz);
 
     boolean tryAddDevice(String key, IDevice device);
 

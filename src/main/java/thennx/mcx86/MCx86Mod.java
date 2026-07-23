@@ -1,6 +1,7 @@
 package thennx.mcx86;
 
 import net.minecraft.client.gui.screens.MenuScreens;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraftforge.client.ConfigScreenHandler;
@@ -84,7 +85,7 @@ public class MCx86Mod {
 
 	public static final RegistryObject<Item> FLOPPY_DRIVE_514_BAY = ITEMS.register("floppy_drive_514_bay", () -> new BayItem(BAYSLOT_FLOPPY_514_RES, new Item.Properties()));
 	public static final RegistryObject<Item> FLOPPY_DRIVE_35_BAY = ITEMS.register("floppy_drive_35_bay", () -> new BayItem(BAYSLOT_FLOPPY_35_RES, new Item.Properties()));
-	public static final RegistryObject<Item> HARDDRIVE_BAY = ITEMS.register("harddrive_bay", () -> new BayHarddriveItem(BAYSLOT_HARDDRIVE_RES, new Item.Properties(), 2, 80, 18, 512));
+	public static final RegistryObject<Item> HARDDRIVE_BAY = ITEMS.register("harddrive_bay", () -> new BayHarddriveItem(BAYSLOT_HARDDRIVE_RES, new Item.Properties(), 100, 2, 18, 512));
 
 	public static final RegistryObject<Item> FLOPPY_DISK8_250 = ITEMS.register("floppy_disk_8_250", () -> new FloppyItem(FloppyItem.Formfactor.F_8, 1, 77, 26, 128));
 	public static final RegistryObject<Item> FLOPPY_DISK514_360 = ITEMS.register("floppy_disk_514_360", () -> new FloppyItem(FloppyItem.Formfactor.F_5_1_4, 1, 80, 9, 512));
@@ -104,7 +105,7 @@ public class MCx86Mod {
 			() -> new BlockItem(WIRE_BLOCK.get(), new Item.Properties()));
 
 	public static final RegistryObject<CreativeModeTab> CREATIVE_TAB = CREATIVE_MODE_TABS.register("mcx86mod_tab",
-			() -> CreativeModeTab.builder().withTabsBefore(CreativeModeTabs.COMBAT)
+			() -> CreativeModeTab.builder().withTabsBefore(CreativeModeTabs.COMBAT).title(Component.translatable("gui.mcx86mod.computer_tab"))
 					.icon(() -> MOTHERBOARD_8086.get().getDefaultInstance()).displayItems((parameters, output) -> {
 						output.accept(MOTHERBOARD_8086.get());
 						output.accept(COMPUTER_BLOCK_ITEM.get());

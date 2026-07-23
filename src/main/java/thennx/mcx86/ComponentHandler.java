@@ -1,30 +1,27 @@
 package thennx.mcx86;
 
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.Tag;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.IItemHandlerModifiable;
 import thennx.mcx86.computer.ComputerBlockEntity;
 import thennx.mcx86.gui.SlotComponent;
-import thennx.mcx86.item.AbstractComponentItem;
 import thennx.mcx86.item.BayItem;
 import thennx.mcx86.item.CardItem;
 import thennx.mcx86.item.MotherboardItem;
-import thennx.vm8086.devices.IStateful;
-
-import java.io.IOException;
 
 public abstract class ComponentHandler implements IItemHandler, IItemHandlerModifiable {
     private ItemStack stack = ItemStack.EMPTY;
     public IDeviceFactory.DeviceInstance deviceInstance = null;
     private final int limit;
     protected ComputerBlockEntity blockEntity;
+    private final String slotName;
 
-    public ComponentHandler(ComputerBlockEntity blockEntity, int limit) {
+    public ComponentHandler(ComputerBlockEntity blockEntity, int limit, String slotName) {
         this.limit = limit;
         this.blockEntity = blockEntity;
+        this.slotName = slotName;
     }
 
     public abstract boolean isAccepted(Item item, int count);
@@ -47,6 +44,7 @@ public abstract class ComponentHandler implements IItemHandler, IItemHandlerModi
 
         if (deviceInstance != null) {
             tag.putString("deviceInstance", deviceInstance.getName());
+            tag.putString("providerSlot", deviceInstance.providerSlot);
         }
 
         inventoryTag.put(name, tag);
@@ -55,6 +53,8 @@ public abstract class ComponentHandler implements IItemHandler, IItemHandlerModi
     public void load(ComputerBlockEntity blockEntity, String name, CompoundTag parent) {
         CompoundTag tag = parent.getCompound(name);
         setStackInSlot(0, ItemStack.of(tag.getCompound("item")));
+        if (tag.contains("providerSlot") && deviceInstance != null)
+            deviceInstance.providerSlot = tag.getString("providerSlot");
     }
 
     @Override
@@ -65,15 +65,15 @@ public abstract class ComponentHandler implements IItemHandler, IItemHandlerModi
         if (blockEntity.getVM() == null)
             return;
 
-        if (!getItemStack().isEmpty()) {
-            if (deviceInstance != null) {
-                blockEntity.removeDevice(deviceInstance);
-                deviceInstance = null;
-            }
+        if (deviceInstance != null) {
+            blockEntity.removeDevice(deviceInstance);
+            deviceInstance = null;
         }
 
         if (stack.getItem() instanceof IDeviceFactory deviceFactory) {
             deviceInstance = deviceFactory.createDevice(stack, blockEntity);
+            if (deviceInstance != null)
+                deviceInstance.providerSlot = this.slotName;
             blockEntity.addDevice(deviceInstance);
         }
     }
@@ -138,8 +138,8 @@ public abstract class ComponentHandler implements IItemHandler, IItemHandlerModi
         private final boolean isLong;
         private final int cardIndex;
 
-        public CardHandler(ComputerBlockEntity blockEntity, boolean isLong, int cardIndex) {
-            super(blockEntity, 1);
+        public CardHandler(ComputerBlockEntity blockEntity, boolean isLong, int cardIndex, String slotName) {
+            super(blockEntity, 1, slotName);
             this.isLong = isLong;
             this.cardIndex = cardIndex;
         }
@@ -185,8 +185,8 @@ public abstract class ComponentHandler implements IItemHandler, IItemHandlerModi
     }
 
     public static class BayHandler extends ComponentHandler {
-        public BayHandler(ComputerBlockEntity blockEntity) {
-            super(blockEntity, 1);
+        public BayHandler(ComputerBlockEntity blockEntity, String slotName) {
+            super(blockEntity, 1, slotName);
         }
 
         @Override

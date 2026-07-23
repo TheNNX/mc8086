@@ -29,7 +29,10 @@ public class MotherboardItem extends Item {
                             .withStyle(ChatFormatting.YELLOW)
                             .withStyle(ChatFormatting.ITALIC));
         }
-        tooltip.add(Component.translatable("tooltip." + MCx86Mod.MODID + ".has_isa_slots", maxCards).withStyle(ChatFormatting.GRAY));
+        tooltip.add(
+                Component.translatable("tooltip." + MCx86Mod.MODID + ".has_isa_slots", maxCards)
+                        .withStyle(ChatFormatting.GRAY)
+                        .withStyle(ChatFormatting.ITALIC));
         super.appendHoverText(stack, level, tooltip, flag);
     }
 

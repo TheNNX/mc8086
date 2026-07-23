@@ -1,6 +1,7 @@
 {
+  "gui.mcx86mod.computer_tab": "8086 Computers",
   "tooltip.mcx86mod.has_8086": " - Built-in 8086 CPU",
-  "tooltip.mcx86mod.has_isa_slots": "%s ISA slots",
+  "tooltip.mcx86mod.has_isa_slots": " - %s ISA slots",
   "block.mcx86mod.computer_8086": "Basic x86 Case",
   "block.mcx86mod.screen": "Basic Screen",
   "item.mcx86mod.motherboard_8086": "Basic 8086 Motherboard",

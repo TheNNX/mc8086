@@ -1,12 +1,5 @@
 package thennx.mcx86.item;
 
-import net.minecraft.world.item.Item;
-import thennx.mcx86.AbstarctDeviceFactoryItem;
-import thennx.mcx86.IDeviceFactory;
-
-import java.util.ArrayList;
-import java.util.List;
-
 public abstract class CardItem extends AbstractComponentItem {
     private final boolean longCard;
 
