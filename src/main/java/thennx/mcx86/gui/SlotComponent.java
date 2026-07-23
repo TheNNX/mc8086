@@ -1,6 +1,5 @@
 package thennx.mcx86.gui;
 
-import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.SlotItemHandler;
 import thennx.mcx86.ComponentHandler;
 

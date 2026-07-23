@@ -8,10 +8,10 @@ public class BayItem extends Item {
 
     public final ResourceLocation resourceLocation;
 
-    public BayItem(String resourcePath, Properties p_41383_) {
+    public BayItem(ResourceLocation resourceLocation, Properties p_41383_) {
         super(p_41383_);
 
-        resourceLocation = new ResourceLocation(MCx86Mod.MODID, resourcePath);
+        this.resourceLocation = resourceLocation;
     }
 
     public ResourceLocation getResourceLocation() {

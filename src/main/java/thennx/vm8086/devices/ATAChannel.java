@@ -5,7 +5,7 @@ import java.util.LinkedList;
 
 import thennx.vm8086.IStateStorage;
 
-public class BarebonesATAChannel implements IPortSpaceDevice, IStateful, IInterruptSource {
+public class ATAChannel implements IPortSpaceDevice, IStateful, IInterruptSource {
 	private final short basePort;
 	private final short controlPort;
 	private boolean slaveSelected;
@@ -15,7 +15,6 @@ public class BarebonesATAChannel implements IPortSpaceDevice, IStateful, IInterr
 	private int secCount;
 	private boolean irqEnabled;
 	private long lba;
-	private boolean deviceBusy;
 	private boolean deviceReady;
 	private boolean deviceFault;
 	private boolean deviceSeekComplete;
@@ -30,11 +29,7 @@ public class BarebonesATAChannel implements IPortSpaceDevice, IStateful, IInterr
 
 	private final IBlockDevice[] drives = new IBlockDevice[2];
 
-	public IBlockDevice getBlockDevice(int i) {
-		return this.drives[i];
-	}
-
-	public BarebonesATAChannel(short basePort, short controlPort) {
+	public ATAChannel(short basePort, short controlPort) {
 		this.basePort = basePort;
 		this.controlPort = controlPort;
 		initialise();
@@ -49,7 +44,6 @@ public class BarebonesATAChannel implements IPortSpaceDevice, IStateful, IInterr
 		this.errorByte = 0;
 		this.irqEnabled = true;
 		this.lba = 0;
-		this.deviceBusy = false;
 		this.deviceReady = true;
 		this.deviceFault = false;
 		this.deviceSeekComplete = true;
@@ -60,6 +54,10 @@ public class BarebonesATAChannel implements IPortSpaceDevice, IStateful, IInterr
 		this.waitingForBytesOfDataIn = 0;
 		this.dataInQueue.clear();
 		this.dataOutQueue.clear();
+	}
+
+	public IBlockDevice getBlockDevice(int i) {
+		return this.drives[i];
 	}
 
 	private void receiveData(byte data) {
@@ -180,12 +178,8 @@ public class BarebonesATAChannel implements IPortSpaceDevice, IStateful, IInterr
 			errorByte = (byte) 0x01;
 			break;
 		case 0xEC:
-			deviceBusy = true;
-
 			enqueueIdentifyData();
-
 			dataRequest = true;
-			deviceBusy = false;
 			if (irqEnabled)
 				irqPending = true;
 
@@ -233,8 +227,6 @@ public class BarebonesATAChannel implements IPortSpaceDevice, IStateful, IInterr
 	}
 
 	private void readSectors(boolean discardData) {
-		deviceBusy = true;
-
 		long effectiveLba = getEffectiveLbaForNormalIo();
 
 		for (int i = 0; i < secCount; i++) {
@@ -243,7 +235,6 @@ public class BarebonesATAChannel implements IPortSpaceDevice, IStateful, IInterr
 				enqueueDataOutArray(result);
 		}
 		secCount = 0;
-		deviceBusy = false;
 		if (discardData)
 			dataRequest = true;
 	}
@@ -257,10 +248,7 @@ public class BarebonesATAChannel implements IPortSpaceDevice, IStateful, IInterr
 	}
 
 	private void writeSectors() {
-		deviceBusy = true;
-
 		dataRequest = true;
-		deviceBusy = false;
 		waitingForBytesOfDataIn = secCount * 512;
 		writeInProgress = true;
 		processDataRequestStatus();
@@ -359,8 +347,8 @@ public class BarebonesATAChannel implements IPortSpaceDevice, IStateful, IInterr
 			result |= 32;
 		if (deviceReady)
 			result |= 64;
-		if (deviceBusy)
-			result |= 128;
+		// if (deviceBusy)
+		//	  result |= 128;
 
 		return (byte) (result & 0xFF);
 	}
@@ -396,7 +384,6 @@ public class BarebonesATAChannel implements IPortSpaceDevice, IStateful, IInterr
 		stateStorage.set("secCount", secCount);
 		stateStorage.set("irqEnabled", irqEnabled);
 		stateStorage.set("lba", lba);
-		stateStorage.set("deviceBusy", deviceBusy);
 		stateStorage.set("deviceReady", deviceReady);
 		stateStorage.set("deviceFault", deviceFault);
 		stateStorage.set("deviceSeekComplete", deviceSeekComplete);
@@ -422,7 +409,6 @@ public class BarebonesATAChannel implements IPortSpaceDevice, IStateful, IInterr
 		secCount = stateStorage.getInt("secCount").orElse(secCount);
 		irqEnabled = stateStorage.getBoolean("irqEnabled").orElse(irqEnabled);
 		lba = stateStorage.getLong("lba").orElse(lba);
-		deviceBusy = stateStorage.getBoolean("deviceBusy").orElse(deviceBusy);
 		deviceReady = stateStorage.getBoolean("deviceReady").orElse(deviceReady);
 		deviceFault = stateStorage.getBoolean("deviceFault").orElse(deviceFault);
 		deviceSeekComplete = stateStorage.getBoolean("deviceSeekComplete").orElse(deviceSeekComplete);

@@ -1,5 +1,6 @@
 package thennx.vm8086;
 
+import thennx.vm8086.devices.IDevice;
 import thennx.vm8086.devices.IPortSpaceDevice;
 import thennx.vm8086.devices.IStateful;
 
@@ -34,9 +35,9 @@ public interface IVirtualMachine extends IStateful {
 
     List<IPortSpaceDevice> getDevices();
 
-    boolean tryAddDevice(IPortSpaceDevice device);
+    boolean tryAddDevice(IDevice device);
 
-    boolean tryRemoveDevice(IPortSpaceDevice device);
+    boolean tryRemoveDevice(IDevice device);
 
     void restart();
 }

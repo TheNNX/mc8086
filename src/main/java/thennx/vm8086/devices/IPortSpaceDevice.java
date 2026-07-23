@@ -1,5 +1,7 @@
 package thennx.vm8086.devices;
 
+import thennx.vm8086.IVirtualMachine;
+
 import java.nio.file.Path;
 
 public interface IPortSpaceDevice extends IDevice {

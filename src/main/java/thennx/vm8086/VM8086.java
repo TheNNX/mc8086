@@ -157,13 +157,29 @@ public class VM8086 implements IVirtualMachine {
 	}
 
 	@Override
-	public boolean tryAddDevice(IPortSpaceDevice device) {
-		return portSpaceDevices.add(device);
+	public boolean tryAddDevice(IDevice device) {
+		if (device instanceof IPortSpaceDevice portSpaceDevice && portSpaceDevices.add(portSpaceDevice)) {
+			device.onAdded(this);
+			return true;
+		}
+
+		if (device instanceof ATAChannel ataChannel) {
+
+		}
+		if (device instanceof DummyIdeDrive dummyIdeDrive) {
+
+		}
+
+		return false;
 	}
 
 	@Override
-	public boolean tryRemoveDevice(IPortSpaceDevice device) {
-		return portSpaceDevices.remove(device);
+	public boolean tryRemoveDevice(IDevice device) {
+		if (device instanceof IPortSpaceDevice portSpaceDevice && portSpaceDevices.remove(portSpaceDevice)) {
+			device.onRemoved(this);
+		}
+
+		return false;
 	}
 
 	@Override
