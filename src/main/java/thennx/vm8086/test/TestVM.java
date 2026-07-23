@@ -1,4 +1,4 @@
-package thennx.vm8086;
+package thennx.vm8086.test;
 
 import java.awt.Frame;
 import java.awt.Insets;
@@ -14,7 +14,7 @@ import java.nio.file.Files;
 import javax.swing.ImageIcon;
 import javax.swing.JLabel;
 
-import thennx.vm8086.devices.DummyIdeDrive;
+import thennx.vm8086.VM8086;
 import thennx.vm8086.devices.PS2Keyboard;
 
 public class TestVM extends Frame {

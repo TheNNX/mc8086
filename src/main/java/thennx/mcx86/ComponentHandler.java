@@ -8,17 +8,17 @@ import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.IItemHandlerModifiable;
 import thennx.mcx86.computer.ComputerBlockEntity;
 import thennx.mcx86.gui.SlotComponent;
+import thennx.mcx86.item.AbstractComponentItem;
 import thennx.mcx86.item.BayItem;
 import thennx.mcx86.item.CardItem;
 import thennx.mcx86.item.MotherboardItem;
-import thennx.vm8086.devices.IPortSpaceDevice;
 import thennx.vm8086.devices.IStateful;
 
 import java.io.IOException;
 
 public abstract class ComponentHandler implements IItemHandler, IItemHandlerModifiable {
     private ItemStack stack = ItemStack.EMPTY;
-    public IPortSpaceDevice device = null;
+    public IDeviceFactory.DeviceInstance deviceInstance = null;
     private final int limit;
     protected ComputerBlockEntity blockEntity;
 
@@ -45,14 +45,8 @@ public abstract class ComponentHandler implements IItemHandler, IItemHandlerModi
         CompoundTag tag = new CompoundTag();
         tag.put("item", getItemStack().save(new CompoundTag()));
 
-        if (device instanceof IStateful stateful) {
-            CompoundTag deviceTag = new CompoundTag();
-            try {
-                stateful.save(new NbtStateStorage(deviceTag));
-                tag.put("device", deviceTag);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+        if (deviceInstance != null) {
+            tag.putString("deviceInstance", deviceInstance.getName());
         }
 
         inventoryTag.put(name, tag);
@@ -61,14 +55,6 @@ public abstract class ComponentHandler implements IItemHandler, IItemHandlerModi
     public void load(ComputerBlockEntity blockEntity, String name, CompoundTag parent) {
         CompoundTag tag = parent.getCompound(name);
         setStackInSlot(0, ItemStack.of(tag.getCompound("item")));
-
-        if (device instanceof IStateful stateful && tag.contains("device", Tag.TAG_COMPOUND)) {
-            try {
-                stateful.load(new NbtStateStorage(tag.getCompound("device")));
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
     }
 
     @Override
@@ -80,15 +66,15 @@ public abstract class ComponentHandler implements IItemHandler, IItemHandlerModi
             return;
 
         if (!getItemStack().isEmpty()) {
-            if (device != null) {
-                blockEntity.removeDevice(device);
-                device = null;
+            if (deviceInstance != null) {
+                blockEntity.removeDevice(deviceInstance);
+                deviceInstance = null;
             }
         }
 
         if (stack.getItem() instanceof IDeviceFactory deviceFactory) {
-            device = deviceFactory.createDevice(blockEntity);
-            blockEntity.addDevice(device);
+            deviceInstance = deviceFactory.createDevice(stack, blockEntity);
+            blockEntity.addDevice(deviceInstance);
         }
     }
 

@@ -3,11 +3,9 @@ package thennx.vm8086;
 import static thennx.vm8086.Registers8086.*;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
+import org.jetbrains.annotations.Nullable;
 import thennx.vm8086.Registers8086.Register16;
 import thennx.vm8086.devices.*;
 import thennx.vm8086.devices.IInterruptSource.InterruptRequest;
@@ -53,7 +51,6 @@ public class VM8086 implements IVirtualMachine {
 		public final short Ip;
 	}
 
-	public int executeCount = 0;
 	private boolean halted = false;
 	private boolean running = false;
 	private boolean ipLogging = false;
@@ -67,7 +64,9 @@ public class VM8086 implements IVirtualMachine {
 	private PIT8254 pit = new PIT8254();
 
 	private final ArrayList<IPortSpaceDevice> portSpaceDevices = new ArrayList<IPortSpaceDevice>();
-	private final ArrayList<IStateful> statefulDevices = new ArrayList<IStateful>();
+	private final Map<String, IStateful> statefulDevices = new HashMap<>();
+	private final Map<String, IDevice> devices = new HashMap<>();
+
 	public byte[] ioPorts = new byte[65536];
 
 	private void initCpu() {
@@ -82,8 +81,8 @@ public class VM8086 implements IVirtualMachine {
 	}
 
 	public void addDebugPorts() {
-		portSpaceDevices.add(new DebugDataPort((short) 0xE8));
-		portSpaceDevices.add(new DebugNumberPort((short) 0xE9));
+		tryAddDevice("debugDataPort", new DebugDataPort((short) 0xE8));
+		tryAddDevice("debugNumberPort", new DebugNumberPort((short) 0xE9));
 	}
 
 	public VM8086(int memorySize, byte[] bios) {
@@ -97,10 +96,10 @@ public class VM8086 implements IVirtualMachine {
 			}
 		}
 
-		portSpaceDevices.add(masterPic);
-		portSpaceDevices.add(slavePic);
-		portSpaceDevices.add(keyboardController);
-		portSpaceDevices.add(pit);
+		tryAddDevice("masterPic", masterPic);
+		tryAddDevice("slavePic", slavePic);
+		tryAddDevice("keyboardController", keyboardController);
+		tryAddDevice("pit", pit);
 
 		masterPic.connect(0, pit);
 		masterPic.connect(1, keyboardController);
@@ -152,34 +151,70 @@ public class VM8086 implements IVirtualMachine {
 	}
 
 	@Override
-	public List<IPortSpaceDevice> getDevices() {
-		return Collections.unmodifiableList(portSpaceDevices);
+	public List<IDevice> getDevices() {
+		return Collections.unmodifiableList(devices.values().stream().toList());
 	}
 
 	@Override
-	public boolean tryAddDevice(IDevice device) {
-		if (device instanceof IPortSpaceDevice portSpaceDevice && portSpaceDevices.add(portSpaceDevice)) {
-			device.onAdded(this);
-			return true;
+	public <T extends IDevice> List<T> getDevices(Class<T> clazz) {
+		List<T> result = new ArrayList<>();
+
+		for (IDevice device : getDevices()) {
+			if (device.getClass() == clazz) {
+				result.add((T) device);
+			}
 		}
 
-		if (device instanceof ATAChannel ataChannel) {
-
-		}
-		if (device instanceof DummyIdeDrive dummyIdeDrive) {
-
-		}
-
-		return false;
+		return result;
 	}
 
 	@Override
-	public boolean tryRemoveDevice(IDevice device) {
-		if (device instanceof IPortSpaceDevice portSpaceDevice && portSpaceDevices.remove(portSpaceDevice)) {
-			device.onRemoved(this);
+	public boolean tryAddDevice(String key, IDevice device) {
+		if (devices.containsKey(key)) {
+			return false;
 		}
 
-		return false;
+		devices.put(key, device);
+
+		if (device instanceof IPortSpaceDevice portSpaceDevice) {
+			portSpaceDevices.add(portSpaceDevice);
+		}
+
+		if (device instanceof IStateful stateful) {
+			statefulDevices.put(key, stateful);
+		}
+
+		if (!device.onAdded(this)) {
+			tryRemoveDevice(key);
+			return false;
+		}
+
+		return true;
+	}
+
+	@Override
+	public @Nullable IDevice getDevice(String key) {
+		return devices.get(key);
+	}
+
+	@Override
+	public IDevice tryRemoveDevice(String key) {
+		if (!devices.containsKey(key)) {
+			return null;
+		}
+
+		IDevice device = devices.remove(key);
+
+		if (device instanceof IPortSpaceDevice portSpaceDevice) {
+			 portSpaceDevices.remove(portSpaceDevice);
+		}
+
+		if (device instanceof IStateful stateful) {
+			statefulDevices.remove(key);
+		}
+
+		device.onRemoved(this);
+		return device;
 	}
 
 	@Override
@@ -189,7 +224,7 @@ public class VM8086 implements IVirtualMachine {
 
 		for (IMemoryBank bank : memory) {
 			if (!bank.isReadonly()) {
-				//random.nextBytes(bytes);
+				random.nextBytes(bytes);
 				bank.setData(bytes);
 			}
 		}
@@ -313,7 +348,6 @@ public class VM8086 implements IVirtualMachine {
 			@Override
             public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) {
 				vm.halted = true;
-				System.err.printf("%d: HLT - %X:%X\n", vm.executeCount, vm.registers.CS.intValue(), vm.registers.IP.shortValue());
 			}
 		};
 		decodeTable[0xF4] = hlt;
@@ -622,16 +656,7 @@ public class VM8086 implements IVirtualMachine {
 		 * According to https://en.wikipedia.org/wiki/X86_instruction_listings:
 		 * "POP CS (opcode 0x0F) works only on 8086/8088. Later CPUs use 0x0F as a prefix for newer instructions."
 		 */
-		decodeTable[0x0F] = new Instruction() {
-			@Override
-            public void execute(VM8086 vm, byte[] bytes, Object[] data, Short segment) throws CpuException {
-				byte subopcode = vm.getIpByte();
-				if (subopcode == 0x06) {
-					decodeTable[0xCF].execute(vm, bytes, data, segment);
-					//logState("0F 06");
-				}
-			}
-		};
+		// decodeTable[0x0F] = ;
 		decodeTable[0x17] = pushOrPopSreg;
 		decodeTable[0x1F] = pushOrPopSreg;
 
@@ -1645,17 +1670,9 @@ public class VM8086 implements IVirtualMachine {
 
 				boolean W = getWidth(vm, selfByte);
 				if (W) {
-					// System.out.printf("*%04X=*%04X=%04X ",
-					// vm.physicalAddressFromSegmentOffset(destinationSegment,
-					// destinationOffset),vm.physicalAddressFromSegmentOffset(sourceSegment,
-					// sourceOffset), vm.readMemoryShort16(sourceSegment, sourceOffset));
 					vm.writeMemoryShort16(destinationSegment, destinationOffset,
 							vm.readMemoryShort16(sourceSegment, sourceOffset));
 				} else {
-					// System.out.printf("*%04X=*%04X=%04X ",
-					// vm.physicalAddressFromSegmentOffset(destinationSegment,
-					// destinationOffset),vm.physicalAddressFromSegmentOffset(sourceSegment,
-					// sourceOffset), vm.readMemoryByte16(sourceSegment, sourceOffset));
 					vm.writeMemoryByte16(destinationSegment, destinationOffset,
 							vm.readMemoryByte16(sourceSegment, sourceOffset));
 				}
@@ -2208,7 +2225,6 @@ public class VM8086 implements IVirtualMachine {
 		decodeTable[0xFB] = sti;
 
 		/* Unimplemented instructions */
-
 		Instruction fwait = new Instruction() {
 
 			@Override
@@ -2638,7 +2654,6 @@ public class VM8086 implements IVirtualMachine {
 			e.startInterrupt();
 		}
 
-		executeCount++;
 		return running;
 	}
 
@@ -2697,8 +2712,10 @@ public class VM8086 implements IVirtualMachine {
 		setHalted(stateStorage.getBoolean("halted").orElse(isHalted()));
 		setRunning(stateStorage.getBoolean("running").orElse(isRunning()));
 
-		for (IStateful device : statefulDevices) {
-			device.load(stateStorage);
+		for (String key : statefulDevices.keySet()) {
+			Optional<IStateStorage> substorage = stateStorage.getSubtag(key);
+			if (substorage.isPresent())
+				statefulDevices.get(key).load(substorage.get());
 		}
 	}
 
@@ -2715,8 +2732,10 @@ public class VM8086 implements IVirtualMachine {
 		stateStorage.set("halted", isHalted());
 		stateStorage.set("running", isRunning());
 
-		for (IStateful device : statefulDevices) {
-			device.save(stateStorage);
+		for (String key : statefulDevices.keySet()) {
+			Optional<IStateStorage> substorage = stateStorage.createSubtag(key);
+			if (substorage.isPresent())
+				statefulDevices.get(key).save(substorage.get());
 		}
 	}
 

@@ -1,6 +1,7 @@
 package thennx.mcx86.device;
 
 import thennx.mcx86.computer.ComputerBlockEntity;
+import thennx.vm8086.IVirtualMachine;
 import thennx.vm8086.devices.IPortSpaceDevice;
 
 public class RedstoneCardDevice implements IPortSpaceDevice {
@@ -25,5 +26,17 @@ public class RedstoneCardDevice implements IPortSpaceDevice {
     @Override
     public byte readByte(short port) {
         return 0;
+    }
+
+    @Override
+    public boolean onAdded(IVirtualMachine machine) {
+        blockEntity.redstoneCardNumber++;
+        return IPortSpaceDevice.super.onAdded(machine);
+    }
+
+    @Override
+    public void onRemoved(IVirtualMachine machine) {
+        blockEntity.redstoneCardNumber--;
+        IPortSpaceDevice.super.onRemoved(machine);
     }
 }

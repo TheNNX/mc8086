@@ -180,6 +180,13 @@ public class ComputerBlock extends AbstractNodeBlock {
         super.onRemove(p_60515_, level, pos, p_60518_, p_60519_);
     }
 
+    @Override
+    public boolean canConnectRedstone(BlockState state, BlockGetter level, BlockPos pos, @Nullable Direction direction) {
+        if (((ComputerBlockEntity) level.getBlockEntity(pos)).hasRedstoneCards())
+            return direction == state.getValue(DIRECTION_PROPERTY).getOpposite();
+        return false;
+    }
+
     public int getCaseMaxCardSlots() {
         return 5;
     }

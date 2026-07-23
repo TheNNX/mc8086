@@ -2,6 +2,7 @@ package thennx.mcx86;
 
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
+import org.checkerframework.checker.units.qual.C;
 import thennx.vm8086.IStateStorage;
 
 import java.io.IOException;
@@ -156,6 +157,18 @@ public class NbtStateStorage implements IStateStorage {
     @Override
     public boolean containsBlob(String name) {
         return false;
+    }
+
+    @Override
+    public Optional<IStateStorage> getSubtag(String name) throws IOException {
+        return Optional.of(new NbtStateStorage(this.tag.getCompound(name)));
+    }
+
+    @Override
+    public Optional<IStateStorage> createSubtag(String name) throws IOException {
+        CompoundTag tag = new CompoundTag();
+        this.tag.put(name, tag);
+        return Optional.of(new NbtStateStorage(tag));
     }
 
     @Override

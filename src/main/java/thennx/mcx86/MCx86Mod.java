@@ -84,7 +84,7 @@ public class MCx86Mod {
 
 	public static final RegistryObject<Item> FLOPPY_DRIVE_514_BAY = ITEMS.register("floppy_drive_514_bay", () -> new BayItem(BAYSLOT_FLOPPY_514_RES, new Item.Properties()));
 	public static final RegistryObject<Item> FLOPPY_DRIVE_35_BAY = ITEMS.register("floppy_drive_35_bay", () -> new BayItem(BAYSLOT_FLOPPY_35_RES, new Item.Properties()));
-	public static final RegistryObject<Item> HARDDRIVE_BAY = ITEMS.register("harddrive_bay", () -> new BayItem(BAYSLOT_HARDDRIVE_RES, new Item.Properties()));
+	public static final RegistryObject<Item> HARDDRIVE_BAY = ITEMS.register("harddrive_bay", () -> new BayHarddriveItem(BAYSLOT_HARDDRIVE_RES, new Item.Properties()));
 
 	public static final RegistryObject<Item> FLOPPY_DISK8_250 = ITEMS.register("floppy_disk_8_250", () -> new FloppyItem(FloppyItem.Formfactor.F_8, 1, 77, 26, 128));
 	public static final RegistryObject<Item> FLOPPY_DISK514_360 = ITEMS.register("floppy_disk_514_360", () -> new FloppyItem(FloppyItem.Formfactor.F_5_1_4, 1, 80, 9, 512));

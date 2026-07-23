@@ -1,5 +1,6 @@
 package thennx.mcx86.item;
 
+import net.minecraft.world.item.ItemStack;
 import thennx.mcx86.computer.ComputerBlockEntity;
 import thennx.mcx86.device.RedstoneCardDevice;
 import thennx.vm8086.devices.IPortSpaceDevice;
@@ -12,7 +13,7 @@ public class RedstoneCardItem extends CardItem {
     }
 
     @Override
-    public @Nullable IPortSpaceDevice createDevice(ComputerBlockEntity blockEntity) {
-        return new RedstoneCardDevice(blockEntity, (short) 0xE0);
+    public @Nullable DeviceInstance createDevice(ItemStack stack, ComputerBlockEntity blockEntity) {
+        return DeviceInstance.ofIndexedName(blockEntity.getVM(), "redstoneCard", new RedstoneCardDevice(blockEntity, (short) 0xE0));
     }
 }

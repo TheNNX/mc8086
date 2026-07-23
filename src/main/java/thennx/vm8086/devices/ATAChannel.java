@@ -56,10 +56,6 @@ public class ATAChannel implements IPortSpaceDevice, IStateful, IInterruptSource
 		this.dataOutQueue.clear();
 	}
 
-	public IBlockDevice getBlockDevice(int i) {
-		return this.drives[i];
-	}
-
 	private void receiveData(byte data) {
 		dataInQueue.add(data);
 		processDataRequestStatus();
@@ -437,11 +433,21 @@ public class ATAChannel implements IPortSpaceDevice, IStateful, IInterruptSource
 		}
 	}
 
-	public void addDevice(IBlockDevice device, boolean slave) {
-		if (slave)
-			this.drives[1] = device;
-		else
-			this.drives[0] = device;
+	public void setBlockDevice(IBlockDevice device, int number) {
+		this.drives[number] = device;
+	}
+
+	public IBlockDevice getBlockDevice(int i) {
+		return this.drives[i];
+	}
+
+	public boolean addBlockDevice(IBlockDevice blockDevice, int i) {
+		if (getBlockDevice(i) == null) {
+			setBlockDevice(blockDevice, i);
+			return true;
+		}
+
+		return false;
 	}
 
 	@Override

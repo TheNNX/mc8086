@@ -1,39 +1,46 @@
 package thennx.vm8086.devices;
 
-import thennx.vm8086.IStateStorage;
 import thennx.vm8086.IVirtualMachine;
-import thennx.vm8086.VM8086;
 
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
+import java.util.List;
 
 public class DummyIdeDrive implements IBlockDevice {
 	private IVirtualMachine vm;
 	private boolean readonly = true;
-	private final Path imagePath;
+	private IPathProvider imagePathProvider;
+	private ATAChannel channel = null;
+	private int channelIndex = 0;
+
+	public interface IPathProvider {
+		Path getPath();
+	}
+
+	public static class AbsolutePathProvider implements IPathProvider {
+		private final Path path;
+
+		public AbsolutePathProvider(Path path) {
+			this.path = path;
+		}
+
+		@Override
+		public Path getPath() {
+			return path;
+		}
+	}
 
 	public DummyIdeDrive(IVirtualMachine vm, Path imagePath, boolean readonly) {
 		this.vm = vm;
-		this.imagePath = imagePath;
+		this.imagePathProvider = new AbsolutePathProvider(imagePath);
 		this.readonly = readonly;
 	}
 
-	public DummyIdeDrive(IVirtualMachine vm) {
+	public DummyIdeDrive(IVirtualMachine vm, IPathProvider provider, boolean readonly) {
 		this.vm = vm;
-
-		String[] tests = {
-				"C:\\Users\\Marcin\\Desktop\\oc86boot\\dos\\dos_2.vhd",
-				"C:\\Users\\Marcin\\Desktop\\bootloader\\bootloader",
-				"C:\\Users\\Marcin\\Desktop\\oc86boot\\dos\\8086-accuracy-master\\8086ac.img",
-				"C:\\Users\\Marcin\\Desktop\\oc86boot\\dos\\dos.img",
-				"C:\\Users\\Marcin\\Desktop\\oc86boot\\dos\\dos2.img",
-				"C:\\Users\\Marcin\\Desktop\\oc86boot\\dos\\first.vhd",
-				"C:\\Users\\Marcin\\Desktop\\oc86boot\\dos\\dos_1.vhd",
-		};
-
-		this.imagePath = Path.of(tests[3]);
+		this.imagePathProvider = provider;
+		this.readonly = readonly;
 	}
 
 	@Override
@@ -42,8 +49,8 @@ public class DummyIdeDrive implements IBlockDevice {
 			return false;
 		}
 
-        try (RandomAccessFile writer = new RandomAccessFile(imagePath.toFile(), "rw")){
-			writer.seek(lba * 512);
+        try (RandomAccessFile writer = new RandomAccessFile(imagePathProvider.getPath().toFile(), "rw")){
+			writer.seek(lba * this.getBytesPerSector());
 			writer.write(sectorData);
 			return true;
         }
@@ -54,10 +61,10 @@ public class DummyIdeDrive implements IBlockDevice {
 
 	@Override
 	public byte[] read(long lba) {
-		byte[] data = new byte[512];
+		byte[] data = new byte[this.getBytesPerSector()];
 
-		try (RandomAccessFile reader = new RandomAccessFile(imagePath.toFile(), "r")){
-			reader.seek(lba * 512);
+		try (RandomAccessFile reader = new RandomAccessFile(imagePathProvider.getPath().toFile(), "r")){
+			reader.seek(lba * this.getBytesPerSector());
 			reader.read(data);
 		} catch (IOException e) {
             return data;
@@ -72,6 +79,33 @@ public class DummyIdeDrive implements IBlockDevice {
 	}
 
 	@Override
+	public boolean onAdded(IVirtualMachine machine) {
+		List<ATAChannel> channels = vm.getDevices(ATAChannel.class);
+
+		for (ATAChannel channel : channels) {
+			for (int i = 0; i < 2; i++) {
+				if (channel.addBlockDevice(this, i)) {
+					this.channel = channel;
+					this.channelIndex = i;
+					return IBlockDevice.super.onAdded(machine);
+				}
+			}
+		}
+
+		return false;
+	}
+
+	@Override
+	public void onRemoved(IVirtualMachine machine) {
+		if (this.channel != null) {
+			assert this.channel.getBlockDevice(channelIndex) == this;
+
+			this.channel.setBlockDevice(null, channelIndex);
+		}
+		IBlockDevice.super.onRemoved(machine);
+	}
+
+	@Override
 	public void saveCache() {
 
 	}
@@ -83,7 +117,7 @@ public class DummyIdeDrive implements IBlockDevice {
 		}
 
         try {
-            Files.deleteIfExists(imagePath);
+            Files.deleteIfExists(imagePathProvider.getPath());
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

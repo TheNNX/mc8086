@@ -1,12 +1,10 @@
 package thennx.mcx86.computer;
 
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraftforge.common.util.INBTSerializable;
-import net.minecraftforge.items.SlotItemHandler;
 import thennx.mcx86.ComponentHandler;
 import thennx.mcx86.ComponentHandler.*;
 import thennx.mcx86.gui.SlotComponent;
@@ -141,8 +139,8 @@ public class ComputerBlockEntityInventoryHandler implements INBTSerializable<Com
                 if (i >= maxCards) {
                     Block.popResource(blockEntity.getLevel(), blockEntity.getBlockPos(), slot.getItemStack());
                     slot.setStackInSlot(0, ItemStack.EMPTY);
-                    if (slot.device != null) {
-                        blockEntity.removeDevice(slot.device);
+                    if (slot.deviceInstance != null) {
+                        blockEntity.removeDevice(slot.deviceInstance);
                     }
                 }
             }

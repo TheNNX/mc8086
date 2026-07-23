@@ -126,6 +126,16 @@ public class FileMemoryStorage implements IStateStorage {
     }
 
     @Override
+    public Optional<IStateStorage> getSubtag(String name) throws IOException {
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<IStateStorage> createSubtag(String name) throws IOException {
+        return Optional.empty();
+    }
+
+    @Override
     public void deleteBlob(String name) throws IOException {
         Path memFilePath = getMemoryStorageDirPath().resolve(name + ".dat");
         Files.deleteIfExists(memFilePath);

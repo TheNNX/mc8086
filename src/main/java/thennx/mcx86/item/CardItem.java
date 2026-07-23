@@ -7,7 +7,7 @@ import thennx.mcx86.IDeviceFactory;
 import java.util.ArrayList;
 import java.util.List;
 
-public abstract class CardItem extends Item implements IDeviceFactory {
+public abstract class CardItem extends AbstractComponentItem {
     private final boolean longCard;
 
     public CardItem(boolean longCard) {

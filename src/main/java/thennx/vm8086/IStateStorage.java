@@ -33,5 +33,8 @@ public interface IStateStorage {
     boolean containsString(String name);
     boolean containsBlob(String name);
 
+    Optional<IStateStorage> getSubtag(String name) throws IOException;
+    Optional<IStateStorage> createSubtag(String name) throws IOException;
+
     void deleteBlob(String format) throws IOException;
 }

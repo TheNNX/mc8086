@@ -10,22 +10,12 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.LevelResource;
-import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.items.ItemStackHandler;
 import thennx.mcx86.*;
-import thennx.mcx86.item.BayItem;
-import thennx.mcx86.item.CardItem;
-import thennx.mcx86.item.MotherboardItem;
 import thennx.mcx86.pool.PoolManager;
 import thennx.mcx86.screen.ScreenBlockEntity;
 import thennx.mcx86.congraph.AbstratcNodeBlockEntity;
@@ -49,6 +39,7 @@ public class ComputerBlockEntity extends AbstratcNodeBlockEntity {
 	private ScreenBlockEntity screenEntity = null;
 	private Node<ComputerBlockEntity> node = new Node<>(this);
 	private final ComputerBlockEntityInventoryHandler inventoryHandler = new ComputerBlockEntityInventoryHandler(this);
+	public int redstoneCardNumber = 0;
 
 	public ComputerBlockEntity(BlockPos pos, BlockState state) {
 		super(MCx86Mod.COMPUTER_BLOCK_ENTITY.get(), pos, state);
@@ -80,6 +71,7 @@ public class ComputerBlockEntity extends AbstratcNodeBlockEntity {
 
 		vm8086.memory[0xB8000 / IMemoryBank.BANK_SIZE] = new VideoMemoryBank(this);
 
+		assert(level == null || level.isClientSide() == false);
 		this.virtualMachine = vm8086;
 	}
 
@@ -151,8 +143,16 @@ public class ComputerBlockEntity extends AbstratcNodeBlockEntity {
 		return pos.getX() + " " + pos.getY() + " " + pos.getZ();
 	}
 
+	public Path getComputerSaveLocation() {
+		if (level == null || level.isClientSide())
+			return null;
+		return level.getServer().getWorldPath(LevelResource.ROOT).resolve("mcx86");
+	}
+
 	private void prepareDirectories() throws IOException {
-		Path parentPath =  level.getServer().getWorldPath(LevelResource.ROOT).resolve("mcx86");
+		Path parentPath = getComputerSaveLocation();
+		if (parentPath == null)
+			return;
 
 		if (Files.notExists(parentPath)) {
 			Files.createDirectory(parentPath);
@@ -209,15 +209,17 @@ public class ComputerBlockEntity extends AbstratcNodeBlockEntity {
 	@Override
 	public void load(CompoundTag nbt) {
 		try {
-			if (virtualMachine == null) {
+			if (virtualMachine == null && (level == null || !level.isClientSide())) {
 				createVm();
 			}
 
 			inventoryHandler.deserializeNBT(nbt.getCompound("inventory"));
 
 			delayedLoadQueued = true;
-			synchronized (virtualMachine) {
-				virtualMachine.load(new NbtStateStorage(nbt));
+			if (virtualMachine != null) {
+				synchronized (virtualMachine) {
+					virtualMachine.load(new NbtStateStorage(nbt));
+				}
 			}
 		}
 		catch (IOException exception) {
@@ -301,14 +303,16 @@ public class ComputerBlockEntity extends AbstratcNodeBlockEntity {
 		return inventoryHandler.insertItem(stack);
 	}
 
-	public void addDevice(IPortSpaceDevice device) {
-		if (device != null && getVM() != null)
-			getVM().tryAddDevice(device);
+	public boolean addDevice(IDeviceFactory.DeviceInstance deviceInstance) {
+		if (deviceInstance != null && getVM() != null) {
+			return getVM().tryAddDevice(deviceInstance.getName(), deviceInstance.getDevice());
+		}
+		return false;
 	}
 
-	public void removeDevice(IPortSpaceDevice device) {
-		if (device != null && getVM() != null)
-			getVM().tryRemoveDevice(device);
+	public void removeDevice(IDeviceFactory.DeviceInstance deviceInstance) {
+		if (deviceInstance != null && getVM() != null)
+			getVM().tryRemoveDevice(deviceInstance.getName());
 	}
 
 	public ItemStack[] getBayItems() {
@@ -345,5 +349,9 @@ public class ComputerBlockEntity extends AbstratcNodeBlockEntity {
 
 	public ComputerBlockEntityInventoryHandler getInventoryHandler() {
 		return inventoryHandler;
+	}
+
+	public boolean hasRedstoneCards() {
+		return redstoneCardNumber > 0;
 	}
 }

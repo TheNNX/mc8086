@@ -1,9 +1,11 @@
 package thennx.mcx86.item;
 
+import net.minecraft.world.item.ItemStack;
 import thennx.mcx86.computer.ComputerBlockEntity;
 import thennx.vm8086.IVirtualMachine;
 import thennx.vm8086.devices.ATAChannel;
 import thennx.vm8086.devices.DummyIdeDrive;
+import thennx.vm8086.devices.IDevice;
 import thennx.vm8086.devices.IPortSpaceDevice;
 
 import javax.annotation.Nullable;
@@ -15,25 +17,26 @@ public class DiskControllerCardItem extends CardItem {
     }
 
     @Override
-    public @Nullable IPortSpaceDevice createDevice(ComputerBlockEntity blockEntity) {
+    public @Nullable DeviceInstance createDevice(ItemStack stack, ComputerBlockEntity blockEntity) {
         IVirtualMachine vm = blockEntity.getVM();
-        List<IPortSpaceDevice> deviceList = vm.getDevices();
+        List<IDevice> deviceList = vm.getDevices();
 
         int numATAChannels = 0;
-        for (IPortSpaceDevice device : deviceList) {
+        for (IDevice device : deviceList) {
             if (device instanceof ATAChannel) {
                 numATAChannels++;
             }
         }
 
+        ATAChannel channel;
+
         if (numATAChannels > 2)
             return null;
         if (numATAChannels == 1)
-            return new ATAChannel((short) 0x170, (short) 0x376);
+            channel = new ATAChannel((short) 0x170, (short) 0x376);
+        else
+            channel = new ATAChannel((short) 0x1F0, (short) 0x3F6);
 
-        ATAChannel primaryIde = new ATAChannel((short) 0x1F0, (short) 0x3F6);
-        primaryIde.addDevice(new DummyIdeDrive(vm), false);
-
-        return primaryIde;
+        return new DeviceInstance("ataChannel" + numATAChannels, channel);
     }
 }

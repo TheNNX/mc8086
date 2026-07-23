@@ -1,9 +1,10 @@
 package thennx.vm8086;
 
+import thennx.vm8086.devices.ATAChannel;
 import thennx.vm8086.devices.IDevice;
-import thennx.vm8086.devices.IPortSpaceDevice;
 import thennx.vm8086.devices.IStateful;
 
+import javax.annotation.Nullable;
 import java.util.List;
 
 public interface IVirtualMachine extends IStateful {
@@ -33,11 +34,15 @@ public interface IVirtualMachine extends IStateful {
 
     long getFrequencyHz();
 
-    List<IPortSpaceDevice> getDevices();
+    List<IDevice> getDevices();
 
-    boolean tryAddDevice(IDevice device);
+    <T extends IDevice> List<T> getDevices(Class<T> clazz);
 
-    boolean tryRemoveDevice(IDevice device);
+    boolean tryAddDevice(String key, IDevice device);
+
+    @Nullable IDevice getDevice(String key);
+
+    @Nullable IDevice tryRemoveDevice(String key);
 
     void restart();
 }

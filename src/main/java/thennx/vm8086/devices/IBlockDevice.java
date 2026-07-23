@@ -19,5 +19,7 @@ public interface IBlockDevice extends IDevice {
 
 	byte getSectorsPerTrack();
 
-	long getTotalSectorCount();
+    default int getBytesPerSector() { return 512; }
+
+    long getTotalSectorCount();
 }
