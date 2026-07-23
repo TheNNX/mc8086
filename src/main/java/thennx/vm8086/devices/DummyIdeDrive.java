@@ -1,5 +1,7 @@
 package thennx.vm8086.devices;
 
+import thennx.vm8086.AbsolutePathProvider;
+import thennx.vm8086.IPathProvider;
 import thennx.vm8086.IVirtualMachine;
 
 import java.io.*;
@@ -18,23 +20,6 @@ public class DummyIdeDrive implements IBlockDevice {
 	private final int heads;
 	private final int sectors;
 	private final int bytesPerSector;
-
-	public interface IPathProvider {
-		Path getPath();
-	}
-
-	public static class AbsolutePathProvider implements IPathProvider {
-		private final Path path;
-
-		public AbsolutePathProvider(Path path) {
-			this.path = path;
-		}
-
-		@Override
-		public Path getPath() {
-			return path;
-		}
-	}
 
 	public DummyIdeDrive(IVirtualMachine vm, Path imagePath, boolean readonly, int c, int h, int s, int bps) {
 		this(vm, new AbsolutePathProvider(imagePath), readonly, c, h, s, bps);
