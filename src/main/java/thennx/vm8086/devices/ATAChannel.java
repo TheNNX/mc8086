@@ -89,12 +89,12 @@ public class ATAChannel implements IPortSpaceDevice, IStateful, IInterruptSource
 		}
 		enqueueDataOutWord((short) (selectedDevice.isRemovable() ? 128 : 64));
 		/* TODO: check if one of those is supposed to have -1 */
-		enqueueDataOutWord(selectedDevice.getCylinders());
+		enqueueDataOutWord((short) selectedDevice.getCylinders());
 		enqueueDataOutWord((short) 0);
-		enqueueDataOutWord(selectedDevice.getHeadsPerCylinder());
+		enqueueDataOutWord((short) selectedDevice.getHeadsPerCylinder());
 		enqueueDataOutWord((short) 0);
 		enqueueDataOutWord((short) 0);
-		enqueueDataOutWord(selectedDevice.getSectorsPerTrack());
+		enqueueDataOutWord((short) selectedDevice.getSectorsPerTrack());
 		for (int i = 7; i <= 21; i++)
 			enqueueDataOutWord((short) 0);
 		enqueueDataOutWord((short) 4);

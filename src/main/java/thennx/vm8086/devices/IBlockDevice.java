@@ -5,7 +5,7 @@ public interface IBlockDevice extends IDevice {
 
 	byte[] read(long lba);
 
-	long getLbaFromChs(short cylinders, byte heads, byte sectors);
+	long getLbaFromChs(int cylinders, int heads, int sectors);
 
 	void saveCache();
 
@@ -13,11 +13,11 @@ public interface IBlockDevice extends IDevice {
 
 	boolean isRemovable();
 
-	short getCylinders();
+	int getCylinders();
 
-	byte getHeadsPerCylinder();
+	int getHeadsPerCylinder();
 
-	byte getSectorsPerTrack();
+	int getSectorsPerTrack();
 
     default int getBytesPerSector() { return 512; }
 

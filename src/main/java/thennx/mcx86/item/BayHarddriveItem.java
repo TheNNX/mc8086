@@ -4,26 +4,33 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
-import thennx.mcx86.ComponentHandler;
 import thennx.mcx86.MCx86Mod;
 import thennx.mcx86.computer.ComputerBlockEntity;
-import thennx.vm8086.IVirtualMachine;
 import thennx.vm8086.devices.DummyIdeDrive;
 
 import java.nio.file.Path;
 import java.util.UUID;
 
 public class BayHarddriveItem extends BayItem {
-    public BayHarddriveItem(ResourceLocation resourceLocation, Properties properties) {
+    private final int cylinders;
+    private final int heads;
+    private final int sectors;
+    private final int bytesPerSector;
+
+    public BayHarddriveItem(ResourceLocation resourceLocation, Properties properties, int cylinders, int heads, int sectors, int bytesPerSector) {
         super(resourceLocation, properties);
+        this.cylinders = cylinders;
+        this.heads = heads;
+        this.sectors = sectors;
+        this.bytesPerSector = bytesPerSector;
     }
 
-    private static void allocateTag(ItemStack stack) {
+    private void allocateTag(ItemStack stack) {
         CompoundTag tag = stack.getOrCreateTag();
         tag.putString("uuid", String.valueOf(UUID.randomUUID()));
     }
 
-    private static DummyIdeDrive.IPathProvider getDrivePathProviderForStack(ComputerBlockEntity blockEntity, ItemStack stack) {
+    private DummyIdeDrive.IPathProvider getDrivePathProviderForStack(ComputerBlockEntity blockEntity, ItemStack stack) {
         if (!stack.hasTag()) {
             allocateTag(stack);
         }
@@ -42,19 +49,21 @@ public class BayHarddriveItem extends BayItem {
 
             @Override
             public Path getPath() {
-                return blockEntity.getComputerSaveLocation().resolve(uuid);
+                return blockEntity.getComputerSaveLocation().resolve(uuid + ".dat");
             }
         }
 
         return new PathProviderImpl(blockEntity, uuid);
     }
 
-    private static boolean getIsStackReadonly(ItemStack stack) {
+    private boolean getIsStackReadonly(ItemStack stack) {
         return !stack.getTag().contains("readonly") && stack.getTag().getBoolean("readonly");
     }
 
-    private static DummyIdeDrive createDrive(ComputerBlockEntity blockEntity, ItemStack stack) {
-        return new DummyIdeDrive(blockEntity.getVM(), getDrivePathProviderForStack(blockEntity, stack), getIsStackReadonly(stack));
+    private DummyIdeDrive createDrive(ComputerBlockEntity blockEntity, ItemStack stack) {
+        return new DummyIdeDrive(
+                blockEntity.getVM(), getDrivePathProviderForStack(blockEntity, stack), getIsStackReadonly(stack),
+                cylinders, heads, sectors, bytesPerSector);
     }
 
     @Override

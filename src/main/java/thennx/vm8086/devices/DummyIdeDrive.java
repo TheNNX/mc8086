@@ -14,6 +14,11 @@ public class DummyIdeDrive implements IBlockDevice {
 	private ATAChannel channel = null;
 	private int channelIndex = 0;
 
+	private final int cylinders;
+	private final int heads;
+	private final int sectors;
+	private final int bytesPerSector;
+
 	public interface IPathProvider {
 		Path getPath();
 	}
@@ -31,21 +36,27 @@ public class DummyIdeDrive implements IBlockDevice {
 		}
 	}
 
-	public DummyIdeDrive(IVirtualMachine vm, Path imagePath, boolean readonly) {
-		this.vm = vm;
-		this.imagePathProvider = new AbsolutePathProvider(imagePath);
-		this.readonly = readonly;
+	public DummyIdeDrive(IVirtualMachine vm, Path imagePath, boolean readonly, int c, int h, int s, int bps) {
+		this(vm, new AbsolutePathProvider(imagePath), readonly, c, h, s, bps);
 	}
 
-	public DummyIdeDrive(IVirtualMachine vm, IPathProvider provider, boolean readonly) {
+	public DummyIdeDrive(IVirtualMachine vm, IPathProvider provider, boolean readonly, int cylinders, int heads, int sectors, int bytesPerSector) {
 		this.vm = vm;
 		this.imagePathProvider = provider;
 		this.readonly = readonly;
+		this.cylinders = cylinders;
+		this.heads = heads;
+		this.bytesPerSector = bytesPerSector;
+		this.sectors = sectors;
 	}
 
 	@Override
 	public boolean write(long lba, byte[] sectorData) {
 		if (readonly) {
+			return false;
+		}
+
+		if (lba >= getTotalSectorCount()) {
 			return false;
 		}
 
@@ -63,6 +74,10 @@ public class DummyIdeDrive implements IBlockDevice {
 	public byte[] read(long lba) {
 		byte[] data = new byte[this.getBytesPerSector()];
 
+		if (lba >= getTotalSectorCount()) {
+			return data;
+		}
+
 		try (RandomAccessFile reader = new RandomAccessFile(imagePathProvider.getPath().toFile(), "r")){
 			reader.seek(lba * this.getBytesPerSector());
 			reader.read(data);
@@ -74,8 +89,8 @@ public class DummyIdeDrive implements IBlockDevice {
 	}
 
 	@Override
-	public long getLbaFromChs(short cylinders, byte heads, byte sectors) {
-		return (cylinders * getHeadsPerCylinder() + heads) * getSectorsPerTrack() + sectors - 1;
+	public long getLbaFromChs(int cylinders, int heads, int sectors) {
+		return ((long) cylinders * getHeadsPerCylinder() + heads) * getSectorsPerTrack() + sectors - 1;
 	}
 
 	@Override
@@ -129,22 +144,27 @@ public class DummyIdeDrive implements IBlockDevice {
 	}
 
 	@Override
-	public short getCylinders() {
-		return 80;
+	public int getCylinders() {
+		return this.cylinders;
 	}
 
 	@Override
-	public byte getHeadsPerCylinder() {
-		return 2;
+	public int getHeadsPerCylinder() {
+		return this.heads;
 	}
 
 	@Override
-	public byte getSectorsPerTrack() {
-		return 18;
+	public int getSectorsPerTrack() {
+		return this.sectors;
+	}
+
+	@Override
+	public int getBytesPerSector() {
+		return this.bytesPerSector;
 	}
 
 	@Override
 	public long getTotalSectorCount() {
-		return getCylinders() * getHeadsPerCylinder() * getSectorsPerTrack();
+		return (long) getCylinders() * getHeadsPerCylinder() * getSectorsPerTrack();
 	}
 }
