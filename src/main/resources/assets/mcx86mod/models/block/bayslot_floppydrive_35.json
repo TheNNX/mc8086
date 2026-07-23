@@ -1,6 +1,6 @@
 {
   "parent": "mcx86mod:block/bayslot_base",
   "textures": {
-    "0": "mcx86mod:block/floppydrive"
+    "0": "mcx86mod:block/bayslot_floppydrive_35"
   }
 }

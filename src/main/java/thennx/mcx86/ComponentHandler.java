@@ -2,14 +2,12 @@ package thennx.mcx86;
 
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
-import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.block.Block;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.IItemHandlerModifiable;
-import net.minecraftforge.items.SlotItemHandler;
 import thennx.mcx86.computer.ComputerBlockEntity;
+import thennx.mcx86.gui.SlotComponent;
 import thennx.mcx86.item.BayItem;
 import thennx.mcx86.item.CardItem;
 import thennx.mcx86.item.MotherboardItem;
@@ -18,19 +16,15 @@ import thennx.vm8086.devices.IStateful;
 
 import java.io.IOException;
 
-public abstract class ComponentSlot implements IItemHandler, IItemHandlerModifiable {
+public abstract class ComponentHandler implements IItemHandler, IItemHandlerModifiable {
     private ItemStack stack = ItemStack.EMPTY;
     public IPortSpaceDevice device = null;
     private final int limit;
     protected ComputerBlockEntity blockEntity;
 
-    public ComponentSlot(ComputerBlockEntity blockEntity, int limit) {
+    public ComponentHandler(ComputerBlockEntity blockEntity, int limit) {
         this.limit = limit;
         this.blockEntity = blockEntity;
-    }
-
-    public ComponentSlot(ComputerBlockEntity blockEntity) {
-        this(blockEntity, Integer.MAX_VALUE);
     }
 
     public abstract boolean isAccepted(Item item, int count);
@@ -145,15 +139,20 @@ public abstract class ComponentSlot implements IItemHandler, IItemHandlerModifia
         return isAccepted(stack);
     }
 
-    public Slot createItemHandler(int slotArrayNum, int slotNum) {
-        return new SlotItemHandler(this, 0, slotNum * 18, slotArrayNum * 18);
+    public SlotComponent createSlotComponent(int offX, int offY, int slotArrayNum, int slotNum) {
+        return new SlotComponent(this, 0, offX + slotNum * 18, offY + slotArrayNum * 18) {
+            @Override
+            public int getOverlayIconIndex() {
+                return 1;
+            }
+        };
     }
 
-    public static class CardSlot extends ComponentSlot {
+    public static class CardHandler extends ComponentHandler {
         private final boolean isLong;
         private final int cardIndex;
 
-        public CardSlot(ComputerBlockEntity blockEntity, boolean isLong, int cardIndex) {
+        public CardHandler(ComputerBlockEntity blockEntity, boolean isLong, int cardIndex) {
             super(blockEntity, 1);
             this.isLong = isLong;
             this.cardIndex = cardIndex;
@@ -171,11 +170,11 @@ public abstract class ComponentSlot implements IItemHandler, IItemHandlerModifia
         }
 
         @Override
-        public Slot createItemHandler(int slotArrayNum, int slotNum) {
-            class CardSlotItemHandler extends SlotItemHandler {
+        public SlotComponent createSlotComponent(int offX, int offY, int slotArrayNum, int slotNum) {
+            class CardSlotComponent extends SlotComponent {
                 public final int cardNum;
 
-                public CardSlotItemHandler(IItemHandler itemHandler, int index, int xPosition, int yPosition, int cardNum) {
+                public CardSlotComponent(ComponentHandler itemHandler, int index, int xPosition, int yPosition, int cardNum) {
                     super(itemHandler, index, xPosition, yPosition);
                     this.cardNum = cardNum;
                 }
@@ -186,14 +185,19 @@ public abstract class ComponentSlot implements IItemHandler, IItemHandlerModifia
                         return false;
                     return cardNum < motherboardItem.getMaxCards();
                 }
+
+                @Override
+                public int getOverlayIconIndex() {
+                    return 6;
+                }
             }
 
-            return new CardSlotItemHandler(this, 0, 18 * slotNum, 18 * slotArrayNum, cardIndex);
+            return new CardSlotComponent(this, 0, offX + 18 * slotNum, offY + 18 * slotArrayNum, cardIndex);
         }
     }
 
-    public static class BaySlot extends ComponentSlot {
-        public BaySlot(ComputerBlockEntity blockEntity) {
+    public static class BayHandler extends ComponentHandler {
+        public BayHandler(ComputerBlockEntity blockEntity) {
             super(blockEntity, 1);
         }
 

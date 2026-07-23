@@ -7,10 +7,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
-import thennx.mcx86.ComponentSlot;
 import thennx.mcx86.MCx86Mod;
-import thennx.mcx86.computer.ComputerBlockEntity;
-import thennx.vm8086.devices.IPortSpaceDevice;
 
 import java.util.List;
 

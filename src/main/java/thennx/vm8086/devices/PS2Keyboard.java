@@ -46,14 +46,19 @@ public class PS2Keyboard implements IPS2Keyboard {
 
 	private State state = State.normal;
 
-	@Override
-	public void initialise() {
+	private void resetDefaults() {
 		state = State.normal;
 		ledStates = 0;
 		scanningEnabled = true;
 		lastSentByte = RESEND;
 		delayBeforeDecodedMs = 500;
 		delayBetweenDecodedMs = 92;
+	}
+
+	@Override
+	public void initialise() {
+		resetDefaults();
+		queuedKeys.clear();
 	}
 
 	private void sendToController(byte data) {
@@ -93,14 +98,14 @@ public class PS2Keyboard implements IPS2Keyboard {
 				sendToController(ACK);
 				break;
 			case 0xF6:
-				initialise();
+				resetDefaults();
 				sendToController(ACK);
 				break;
 			case 0xFE:
 				sendToController(lastSentByte);
 				break;
 			case 0xFF:
-				initialise();
+				resetDefaults();
 				sendToController(TEST_PASSED);
 				break;
 			default:
@@ -176,22 +181,22 @@ public class PS2Keyboard implements IPS2Keyboard {
 
 	@Override
 	public void queueKeystroke(int key, char character, boolean pressed) {
-		queuedKeys.add(new QueuedKey(key, pressed, character));
+		synchronized (queuedKeys) {
+			queuedKeys.add(new QueuedKey(key, pressed, character));
+		}
 	}
 
 	@Override
 	public boolean handleKeystrokeQueue(VM8086 vm8086) {
-		if ((vm8086.registers.FLAGS.intValue() & Registers8086.MASK_IF) != 0) {
-			QueuedKey input = queuedKeys.poll();
-			if (input != null) {
-				if (input.pressed)
-					this.keyPressed(input.scancode);
-				else
-					this.keyPressed(input.scancode | 0x80);
-				
-				return true;
-			} 	
-		}
-		return false;
+		QueuedKey input = queuedKeys.poll();
+		if (input == null)
+			return false;
+
+		if (input.pressed)
+			this.keyPressed(input.scancode);
+		else
+			this.keyPressed(input.scancode | 0x80);
+
+		return true;
 	}
 }

@@ -34,7 +34,7 @@ public class SimplifiedKeyboardController implements IPortSpaceDevice, IKeyboard
 	private boolean waitingForCOPData;
 	private byte[] internalRam;
 	private boolean firstPs2PortEnabled;
-	LinkedList<Byte> deviceQueuedBytes = new LinkedList<>();
+	private final LinkedList<Byte> deviceQueuedBytes = new LinkedList<>();
 
 	public SimplifiedKeyboardController(VM8086 vm) {
 		this.vm = vm;
@@ -97,9 +97,11 @@ public class SimplifiedKeyboardController implements IPortSpaceDevice, IKeyboard
 			internalRam[i] = stateStorage.getByte("ram" + i).orElse(internalRam[i]);
 		}
 
-		deviceQueuedBytes.clear();
-		while (stateStorage.containsByte("queuedByte" + deviceQueuedBytes.size())) {
-			deviceQueuedBytes.add(stateStorage.getByte("queuedByte" + deviceQueuedBytes.size()).get());
+		synchronized (deviceQueuedBytes) {
+			deviceQueuedBytes.clear();
+			while (stateStorage.containsByte("queuedByte" + deviceQueuedBytes.size())) {
+				deviceQueuedBytes.add(stateStorage.getByte("queuedByte" + deviceQueuedBytes.size()).get());
+			}
 		}
 	}
 
@@ -152,6 +154,10 @@ public class SimplifiedKeyboardController implements IPortSpaceDevice, IKeyboard
 		firstPs2PortEnabled = true;
 		currentRequest = null;
 		deviceQueuedBytes.clear();
+
+		if (this.keyboard != null) {
+			this.keyboard.initialise();
+		}
 	}
 
 	private void writeToCommandRegister(byte dataByte) {
@@ -318,7 +324,9 @@ public class SimplifiedKeyboardController implements IPortSpaceDevice, IKeyboard
 	@Override
 	public InterruptRequest consume() {
 		InterruptRequest result = this.peek();
-		this.currentRequest = null;
+		if (deviceQueuedBytes.isEmpty()) {
+			this.currentRequest = null;
+		}
 		return result;
 	}
 

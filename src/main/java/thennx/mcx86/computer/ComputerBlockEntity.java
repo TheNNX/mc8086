@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
@@ -322,8 +323,8 @@ public class ComputerBlockEntity extends AbstratcNodeBlockEntity {
 		return this.inventoryHandler.getCards();
 	}
 
-	public ComponentSlot[][] getSlotArrays() {
-		return this.inventoryHandler.getSlotArrayMap().values().toArray(new ComponentSlot[0][]);
+	public List<ComputerBlockEntityInventoryHandler.SlotArray> getSlotArrays() {
+		return this.inventoryHandler.getSlotArrays();
 	}
 
 	private ComputerBlock getBlock() {

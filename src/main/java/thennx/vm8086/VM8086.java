@@ -74,14 +74,6 @@ public class VM8086 implements IVirtualMachine {
 		registers = new Registers8086();
 		initializeDecodeTable();
 
-		portSpaceDevices.add(masterPic);
-		portSpaceDevices.add(slavePic);
-		portSpaceDevices.add(keyboardController);
-		portSpaceDevices.add(pit);
-
-		masterPic.connect(0, pit);
-		masterPic.connect(1, keyboardController);
-
 		registers.IP.write((short) 0x0000);
 		registers.CS.write((short) 0xFFFF);
 		registers.DX.write((short) 0x0000);
@@ -104,6 +96,14 @@ public class VM8086 implements IVirtualMachine {
 				memory[i] = new PhysicalMemoryBank();
 			}
 		}
+
+		portSpaceDevices.add(masterPic);
+		portSpaceDevices.add(slavePic);
+		portSpaceDevices.add(keyboardController);
+		portSpaceDevices.add(pit);
+
+		masterPic.connect(0, pit);
+		masterPic.connect(1, keyboardController);
 
 		restart();
 		running = true;
@@ -173,7 +173,7 @@ public class VM8086 implements IVirtualMachine {
 
 		for (IMemoryBank bank : memory) {
 			if (!bank.isReadonly()) {
-				random.nextBytes(bytes);
+				//random.nextBytes(bytes);
 				bank.setData(bytes);
 			}
 		}

@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:item/generated",
   "textures": {
-    "layer0": "mcx86mod:item/floppy_drive"
+    "layer0": "mcx86mod:item/floppy_drive_514_bay"
   }
 }

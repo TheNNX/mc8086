@@ -80,7 +80,10 @@ public class MCx86Mod {
 	public static final RegistryObject<Item> REDSTONE_CARD = ITEMS.register("redstone_card", RedstoneCardItem::new);
 	public static final RegistryObject<Item> DISK_CONTROLLER_CARD = ITEMS.register("disk_controller_card", DiskControllerCardItem::new);
 	public static final RegistryObject<Item> CGA_CARD = ITEMS.register("video_card_cga", CgaCardItem::new);
-	public static final RegistryObject<Item> FLOPPY_DRIVE = ITEMS.register("floppy_drive", () -> new BayItem("block/bayslot_floppydrive", new Item.Properties()));
+
+	public static final RegistryObject<Item> FLOPPY_DRIVE_514_BAY = ITEMS.register("floppy_drive_514_bay", () -> new BayItem("block/bayslot_floppydrive_514", new Item.Properties()));
+	public static final RegistryObject<Item> FLOPPY_DRIVE_35_BAY = ITEMS.register("floppy_drive_35_bay", () -> new BayItem("block/bayslot_floppydrive_35", new Item.Properties()));
+
 	public static final RegistryObject<Item> FLOPPY_DISK8_250 = ITEMS.register("floppy_disk_8_250", () -> new FloppyItem(FloppyItem.Formfactor.F_8, 1, 77, 26, 128));
 	public static final RegistryObject<Item> FLOPPY_DISK514_360 = ITEMS.register("floppy_disk_514_360", () -> new FloppyItem(FloppyItem.Formfactor.F_5_1_4, 1, 80, 9, 512));
 	public static final RegistryObject<Item> FLOPPY_DISK35_360 = ITEMS.register("floppy_disk_35_360", () -> new FloppyItem(FloppyItem.Formfactor.F_3_5, 1, 80, 9, 512));
@@ -111,7 +114,8 @@ public class MCx86Mod {
 						output.accept(CGA_CARD.get());
 						output.accept(REDSTONE_CARD.get());
 
-						output.accept(FLOPPY_DRIVE.get());
+						output.accept(FLOPPY_DRIVE_514.get());
+						output.accept(FLOPPY_DRIVE_35.get());
 
 						output.accept(FLOPPY_DISK8_250.get());
 						output.accept(FLOPPY_DISK514_360.get());

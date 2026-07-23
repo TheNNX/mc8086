@@ -1,66 +1,53 @@
 package thennx.mcx86.computer;
 
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.Tag;
+import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraftforge.common.util.INBTSerializable;
-import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.items.IItemHandlerModifiable;
-import org.checkerframework.checker.units.qual.C;
-import org.jetbrains.annotations.NotNull;
-import thennx.mcx86.ComponentSlot;
-import thennx.mcx86.ComponentSlot.*;
-import thennx.mcx86.NbtStateStorage;
-import thennx.mcx86.item.BayItem;
-import thennx.mcx86.item.CardItem;
+import net.minecraftforge.items.SlotItemHandler;
+import thennx.mcx86.ComponentHandler;
+import thennx.mcx86.ComponentHandler.*;
+import thennx.mcx86.gui.SlotComponent;
 import thennx.mcx86.item.MotherboardItem;
-import thennx.vm8086.devices.IPortSpaceDevice;
-import thennx.vm8086.devices.IStateful;
 
-import java.io.IOException;
 import java.util.*;
 
 public class ComputerBlockEntityInventoryHandler implements INBTSerializable<CompoundTag> {
     private final ComputerBlockEntity blockEntity;
 
-    private ComponentSlot motherboard;
-    private CardSlot[] cardSlots;
-    private BaySlot[] baySlots;
+    private ComponentHandler motherboard;
+    private CardHandler[] cardSlots;
+    private BayHandler[] baySlots;
+    private ComponentHandler[] removableMedia;
 
-    private class SlotArray {
-        private final ComponentSlot[] array;
-        private final String name;
+    public static class SlotArray {
+        public final ComponentHandler[] array;
+        public final String name;
 
-        private SlotArray(ComponentSlot[] array, String name) {
+        private SlotArray(ComponentHandler[] array, String name) {
             this.array = array;
             this.name = name;
         }
     }
 
-    private List<SlotArray> getSlotArrays() {
-        return List.of(new SlotArray(new ComponentSlot[]{motherboard}, "motherboard"), new SlotArray(cardSlots, "card"), new SlotArray(baySlots, "bay"));
-    }
-
-    public Map<String, ComponentSlot[]> getSlotArrayMap() {
-        HashMap<String, ComponentSlot[]> result = new HashMap<>();
-
-        for (SlotArray sa : getSlotArrays()) {
-            result.put(sa.name, sa.array);
-        }
-
-        return result;
+    public List<SlotArray> getSlotArrays() {
+        return List.of(
+                new SlotArray(new ComponentHandler[]{motherboard}, "motherboard"),
+                new SlotArray(baySlots, "bay"),
+                new SlotArray(removableMedia, "removable"),
+                new SlotArray(cardSlots, "card"));
     }
 
     public ComputerBlockEntityInventoryHandler(ComputerBlockEntity blockEntity) {
         this.blockEntity = blockEntity;
+        this.removableMedia = new ComponentHandler[0];
 
         createBaySlots();
         createCardSlots();
 
-        this.motherboard = new ComponentSlot(blockEntity, 1) {
+        this.motherboard = new ComponentHandler(blockEntity, 1) {
             @Override
             public boolean isAccepted(Item item, int count) {
                 return item instanceof MotherboardItem;
@@ -70,21 +57,35 @@ public class ComputerBlockEntityInventoryHandler implements INBTSerializable<Com
             public void setStackInSlot(int slot, ItemStack stack) {
                 super.setStackInSlot(slot, stack);
                 popOffInvalidCards();
+
+                if (this.blockEntity.getVM() != null) {
+                    this.blockEntity.shutdownVm(true);
+                }
+            }
+
+            @Override
+            public SlotComponent createSlotComponent(int offX, int offY, int slotArrayNum, int slotNum) {
+                return new SlotComponent(this, 0, offX + 72 + slotNum * 18, offY + slotArrayNum * 18) {
+                    @Override
+                    public int getOverlayIconIndex() {
+                        return 5;
+                    }
+                };
             }
         };
     }
 
     private void createCardSlots() {
-        this.cardSlots = new CardSlot[blockEntity.getCardSlots()];
+        this.cardSlots = new CardHandler[blockEntity.getCardSlots()];
         for (int i = 0; i < this.cardSlots.length; i++) {
-            this.cardSlots[i] = new CardSlot(blockEntity, blockEntity.isCardSlotLong(i), i);
+            this.cardSlots[i] = new CardHandler(blockEntity, blockEntity.isCardSlotLong(i), i);
         }
     }
 
     private void createBaySlots() {
-        this.baySlots = new BaySlot[blockEntity.getBaySlots()];
+        this.baySlots = new BayHandler[blockEntity.getBaySlots()];
         for (int i = 0; i < this.baySlots.length; i++) {
-            this.baySlots[i] = new BaySlot(blockEntity);
+            this.baySlots[i] = new BayHandler(blockEntity);
         }
     }
 
@@ -95,7 +96,7 @@ public class ComputerBlockEntityInventoryHandler implements INBTSerializable<Com
         for (SlotArray slotArray : getSlotArrays()) {
             int index = 0;
 
-            for (ComponentSlot slot : slotArray.array) {
+            for (ComponentHandler slot : slotArray.array) {
                 slot.save(slotArray.name + index, tag);
                 index++;
             }
@@ -115,6 +116,10 @@ public class ComputerBlockEntityInventoryHandler implements INBTSerializable<Com
             baySlots[i].load(blockEntity, "bay" + i, tag);
         }
 
+        for (int i = 0; i < removableMedia.length; i++) {
+            removableMedia[i].load(blockEntity, "removable" + i, tag);
+        }
+
         for (int i = 0; i < cardSlots.length; i++) {
             cardSlots[i].load(blockEntity, "card" + i, tag);
         }
@@ -131,7 +136,7 @@ public class ComputerBlockEntityInventoryHandler implements INBTSerializable<Com
 
         if (blockEntity.getLevel() != null && !blockEntity.getLevel().isClientSide()) {
             for (int i = 0; i < this.cardSlots.length; i++) {
-                CardSlot slot = this.cardSlots[i];
+                CardHandler slot = this.cardSlots[i];
 
                 if (i >= maxCards) {
                     Block.popResource(blockEntity.getLevel(), blockEntity.getBlockPos(), slot.getItemStack());
@@ -146,7 +151,7 @@ public class ComputerBlockEntityInventoryHandler implements INBTSerializable<Com
 
     public boolean insertItem(ItemStack stack) {
         for (SlotArray slotArray : getSlotArrays()) {
-            for (ComponentSlot slot : slotArray.array) {
+            for (ComponentHandler slot : slotArray.array) {
                 if (slot.isAccepted(stack) && slot.getItemStack().isEmpty()) {
                     ItemStack newStack = stack.split(1);
                     slot.setStackInSlot(0, newStack);
