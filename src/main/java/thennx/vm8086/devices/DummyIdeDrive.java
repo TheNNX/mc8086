@@ -92,10 +92,8 @@ public class DummyIdeDrive implements IBlockDevice {
 	public long getLbaFromChs(int cylinders, int heads, int sectors) {
 		return ((long) cylinders * getHeadsPerCylinder() + heads) * getSectorsPerTrack() + sectors - 1;
 	}
-
-	@Override
-	public boolean onAdded(IVirtualMachine machine, String key) {
-		Map<String, ATAChannel> channels = vm.getDevices(ATAChannel.class);
+	public boolean tryFindController(IVirtualMachine machine, String key) {
+		Map<String, ATAChannel> channels = machine.getDevices(ATAChannel.class);
 
 		for (ATAChannel channel : channels.values()) {
 			if (channel.addBlockDevice(this, key)) {
@@ -103,6 +101,13 @@ public class DummyIdeDrive implements IBlockDevice {
 				return true;
 			}
 		}
+
+		return false;
+	}
+
+	@Override
+	public boolean onAdded(IVirtualMachine machine, String key) {
+		tryFindController(machine, key);
 
 		return true;
 	}
@@ -119,6 +124,9 @@ public class DummyIdeDrive implements IBlockDevice {
 	public void onOtherRemoved(IVirtualMachine machine, String selfKey, String removedKey, IDevice removed) {
 		if (channel == removed) {
 			this.channel = null;
+
+			/* Try finding another controller to attach to */
+			tryFindController(machine, selfKey);
 		}
 		IBlockDevice.super.onOtherRemoved(machine, selfKey, removedKey, removed);
 	}
